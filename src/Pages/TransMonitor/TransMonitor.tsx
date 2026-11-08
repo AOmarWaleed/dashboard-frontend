@@ -1008,6 +1008,7 @@ export default function TransMonitor() {
           </Box>
           <Box sx={{ width: "65%" }}>
             <Secure.GLCustomTable2
+              key={`summary-${filterValues?.payers === false ? 'all' : (selectedPayerId ?? 'none')}`}
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transSummary`}
               fetcher={fetcher}
               url={
@@ -1211,6 +1212,7 @@ export default function TransMonitor() {
         >
           {/* {selectedTransDetailsId} */}
           <Secure.GLCustomTable2
+            key={`details-${filterValues?.payers === false ? 'all' : (selectedPayerId ?? 'none')}-${filterValues?.status === false ? 'all' : (selectedTransSummaryId ?? 'none')}`}
             permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetails`}
             fetcher={fetcher}
             url={
@@ -1958,6 +1960,7 @@ export default function TransMonitor() {
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetailsErrorsTab`}
             >
               <Secure.GLCustomTable2
+                key={`errors-${selectedTransDetailsId ?? 'none'}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transErrorsTable`}
                 fetcher={fetcher}
                 url={selectedTransDetailsId ? "/transMonitor/trans_errors" : ""}
@@ -2051,6 +2054,7 @@ export default function TransMonitor() {
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetailsResponseTab`}
             >
               <Secure.GLCustomTable2
+                key={`responses-${selectedTransDetailsId ?? 'none'}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transResponses`}
                 fetcher={fetcher}
                 url={selectedTransDetailsId ? "/transMonitor/trans_responses" : ""}
@@ -2186,6 +2190,7 @@ export default function TransMonitor() {
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetailsPollDetailsTab`}
             >
               <Secure.GLCustomTable2
+                key={`poll-${selectedTransDetailsId ?? 'none'}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}pollDetails`}
                 fetcher={fetcher}
                 url={selectedTransDetailsId ? "/transMonitor/poll_details" : ""}
