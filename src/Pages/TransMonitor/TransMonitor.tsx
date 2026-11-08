@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import { useTransMonitorContext } from "./Context/TransMonitorContext";
+import {
+  useTransMonitorContext,
+  cleanParams,
+} from "./Context/TransMonitorContext";
 import type {
   Payers,
   PollDetails,
@@ -154,6 +157,7 @@ export default function TransMonitor() {
    * Only Payer Table will fetch first.
    */
   const handleFilterSubmit = (newFilters: Filters) => {
+    filterValuesRef.current = newFilters;
     setSelectedPayerId(null);
     setSelectedTransSummary(null);
     setSelectedTransSummaryId(null);
@@ -393,7 +397,7 @@ export default function TransMonitor() {
     filters: Filters | null,
   ) => {
     const activeFilters = filters ?? ({} as Filters);
-    const params = {
+    const params: Record<string, any> = {
       ...activeFilters,
       payer_id: activeFilters.payers ? selectedPayerId : activeFilters.payer_id,
       api_name: activeFilters.status
@@ -402,10 +406,12 @@ export default function TransMonitor() {
       api_function: activeFilters.status
         ? selectedSummary?.api_function
         : activeFilters.api_function,
-      status: activeFilters.status ? selectedSummary?.status : "",
+      status: activeFilters.status
+        ? selectedSummary?.status
+        : activeFilters.transaction_status,
     };
     delete params.payers;
-    return params;
+    return cleanParams(params);
   };
 
   const handleSendAdvancedAuth = async (responseId: string | number) => {

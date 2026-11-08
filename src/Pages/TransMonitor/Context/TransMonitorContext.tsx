@@ -125,6 +125,22 @@ export function useTransMonitorContext() {
   return ctx;
 }
 
+export const cleanParams = (obj: Record<string, any>) => {
+  const cleaned: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (
+      val !== undefined &&
+      val !== null &&
+      val !== "" &&
+      val !== "null" &&
+      val !== "undefined"
+    ) {
+      cleaned[key] = val;
+    }
+  }
+  return cleaned;
+};
+
 export function TransMonitorProvider({
   children,
 }: {
@@ -178,7 +194,7 @@ export function TransMonitorProvider({
     const params = { ...(filters ?? ({} as Filters)) };
     delete params.status;
     delete params.payers;
-    return params;
+    return cleanParams(params);
   };
 
   const getPayersFn = useCallback(async (params: any) => {
@@ -208,10 +224,11 @@ export function TransMonitorProvider({
     const filterParams = { ...(filters ?? ({} as Filters)) };
     delete filterParams.status;
     delete filterParams.payers;
-    return {
+    const payer_id = filters?.payers ? selectedPayerId : filters?.payer_id;
+    return cleanParams({
       ...filterParams,
-      payer_id: filters?.payers ? selectedPayerId : filters?.payer_id,
-    };
+      payer_id,
+    });
   };
 
   const getTransSummaryFn = useCallback(async (params: any) => {
