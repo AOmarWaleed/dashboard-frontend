@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTransMonitorContext } from "./Context/TransMonitorContext";
 import type {
   Payers,
@@ -81,6 +81,9 @@ export default function TransMonitor() {
 
   // Search filter and tracking
   const [filterValues, setFilterValues] = useState<Filters | null>(null);
+  const filterValuesRef = useRef<Filters | null>(null);
+  filterValuesRef.current = filterValues;
+
   const [searchCount, setSearchCount] = useState(0);
 
   // Table pagination
@@ -276,6 +279,113 @@ export default function TransMonitor() {
   const errorsUrl = tabsReady ? "/transMonitor/trans_errors" : "";
   const responsesUrl = tabsReady ? "/transMonitor/trans_responses" : "";
   const pollDetailsUrl = tabsReady ? "/transMonitor/poll_details" : "";
+
+  // Intercepting fetchers to automatically chain selection upon data arrival
+  const payerFetcher = useCallback(
+    async (args: any) => {
+      const res = await fetcher(args);
+      const rows: Payers[] = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+          ? res
+          : [];
+      if (filterValuesRef.current?.payers && rows.length > 0) {
+        setSelectedPayerId(rows[0].payer_id);
+      } else if (filterValuesRef.current?.payers && rows.length === 0) {
+        setSelectedPayerId(null);
+      }
+      return res;
+    },
+    [setSelectedPayerId],
+  );
+
+  const summaryFetcher = useCallback(
+    async (args: any) => {
+      const res = await fetcher(args);
+      const rows: TransSummary[] = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+          ? res
+          : [];
+      if (filterValuesRef.current?.status && rows.length > 0) {
+        setSelectedTransSummary(rows[0]);
+        setSelectedTransSummaryId(getSummaryRowId(rows[0]));
+      } else if (filterValuesRef.current?.status && rows.length === 0) {
+        setSelectedTransSummary(null);
+        setSelectedTransSummaryId(null);
+      }
+      return res;
+    },
+    [setSelectedTransSummary, setSelectedTransSummaryId],
+  );
+
+  const detailsFetcher = useCallback(
+    async (args: any) => {
+      const res = await fetcher(args);
+      const rows: TransDetails[] = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+          ? res
+          : [];
+      if (rows.length > 0) {
+        setSelectedTransDetails(rows[0]);
+        setSelectedTransDetailsId(rows[0].api_trans_id);
+      } else {
+        setSelectedTransDetails(null);
+        setSelectedTransDetailsId(null);
+      }
+      return res;
+    },
+    [setSelectedTransDetails, setSelectedTransDetailsId],
+  );
+
+  const errorsFetcher = useCallback(
+    async (args: any) => {
+      const res = await fetcher(args);
+      const rows: TransError[] = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+          ? res
+          : [];
+      if (rows.length > 0) {
+        setSelectedTransErrorId(rows[0].message_id);
+      } else {
+        setSelectedTransErrorId(null);
+      }
+      return res;
+    },
+    [setSelectedTransErrorId],
+  );
+
+  const responsesFetcher = useCallback(async (args: any) => {
+    const res = await fetcher(args);
+    const rows: TransResponse[] = Array.isArray(res?.data)
+      ? res.data
+      : Array.isArray(res)
+        ? res
+        : [];
+    if (rows.length > 0) {
+      setSelectedTransResponseId(rows[0].response_seq);
+    } else {
+      setSelectedTransResponseId(null);
+    }
+    return res;
+  }, []);
+
+  const pollDetailsFetcher = useCallback(async (args: any) => {
+    const res = await fetcher(args);
+    const rows: PollDetails[] = Array.isArray(res?.data)
+      ? res.data
+      : Array.isArray(res)
+        ? res
+        : [];
+    if (rows.length > 0) {
+      setSelectedPollDetailsId(rows[0].response_id);
+    } else {
+      setSelectedPollDetailsId(null);
+    }
+    return res;
+  }, []);
 
   const getTransDetailsParams = (
     selectedPayerId: any,
@@ -506,7 +616,7 @@ export default function TransMonitor() {
             <Secure.GLCustomTable2
               key={`payers-${searchCount}`}
               permission={`${PERMISSIONS_PREFIXES.transMonitor}payers`}
-              fetcher={fetcher}
+              fetcher={payerFetcher}
               url={payersUrl}
               params={getPayersParams(filterValues)}
               getRowId={(row: any) => row.payer_id}
@@ -515,7 +625,6 @@ export default function TransMonitor() {
               onPageChangeExternal={handlePayersPageChange}
               smallSize
               refetchRef={refetchRefPayer}
-              autoSelectFirstRow={Boolean(filterValues?.payers)}
               onRowSelected={handlePayerSelected}
               sx={{ maxHeight: "35vh" }}
               columns={
@@ -567,7 +676,7 @@ export default function TransMonitor() {
             <Secure.GLCustomTable2
               key={`summary-${filterValues?.payers ? (selectedPayerId ?? "none") : "all"}-${searchCount}`}
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transSummary`}
-              fetcher={fetcher}
+              fetcher={summaryFetcher}
               url={summaryUrl}
               params={getTransSummaryParams(selectedPayerId, filterValues)}
               getRowId={(row: TransSummary) =>
@@ -579,7 +688,6 @@ export default function TransMonitor() {
               sx={{ maxHeight: "35vh" }}
               smallSize
               limit={limit}
-              autoSelectFirstRow={Boolean(filterValues?.status)}
               onRowSelected={handleTransSummarySelected}
               columns={
                 [
@@ -669,7 +777,7 @@ export default function TransMonitor() {
           <Secure.GLCustomTable2
             key={`details-${filterValues?.payers ? (selectedPayerId ?? "none") : "all"}-${filterValues?.status && selectedTransSummary ? getSummaryRowId(selectedTransSummary) : "all"}-${searchCount}`}
             permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetails`}
-            fetcher={fetcher}
+            fetcher={detailsFetcher}
             url={detailsUrl}
             params={getTransDetailsParams(
               selectedPayerId,
@@ -682,7 +790,6 @@ export default function TransMonitor() {
             page={transDetailsTablePage}
             onPageChangeExternal={handleTransDetailsPageChange}
             refetchRef={refetchRefDetails}
-            autoSelectFirstRow={true}
             onRowSelected={handleTransDetailsSelected}
             initialHiddenColumns={[
               "bundle_id",
@@ -1165,11 +1272,10 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 key={`errors-${selectedTransDetailsId ?? "none"}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transErrorsTable`}
-                fetcher={fetcher}
+                fetcher={errorsFetcher}
                 url={errorsUrl}
                 params={{ trans_id: selectedTransDetailsId }}
                 smallSize
-                autoSelectFirstRow={true}
                 refetchRef={refetchRefErrors}
                 columns={
                   [
@@ -1260,11 +1366,10 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 key={`responses-${selectedTransDetailsId ?? "none"}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transResponses`}
-                fetcher={fetcher}
+                fetcher={responsesFetcher}
                 url={responsesUrl}
                 params={{ trans_id: selectedTransDetailsId }}
                 smallSize
-                autoSelectFirstRow={true}
                 refetchRef={refetchRefResponses}
                 getRowId={(row: TransResponse) => row.response_seq}
                 onRowSelected={(row) =>
@@ -1388,11 +1493,10 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 key={`pollDetails-${selectedTransDetailsId ?? "none"}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}pollDetails`}
-                fetcher={fetcher}
+                fetcher={pollDetailsFetcher}
                 url={pollDetailsUrl}
                 params={{ trans_id: selectedTransDetailsId }}
                 smallSize
-                autoSelectFirstRow={true}
                 refetchRef={refetchRefPollDetails}
                 getRowId={(row: PollDetails) => row.response_id}
                 onRowSelected={(row) =>
