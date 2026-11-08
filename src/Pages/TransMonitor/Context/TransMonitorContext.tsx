@@ -175,9 +175,14 @@ export function TransMonitorProvider({
   );
 
   const getPayersParams = (filters: Filters | null) => {
-    const params = { ...(filters ?? ({} as Filters)) };
+    const params: any = { ...(filters ?? ({} as Filters)) };
     delete params.status;
     delete params.payers;
+    Object.keys(params).forEach((key) => {
+      if (params[key] === "" || params[key] === null || params[key] === undefined) {
+        delete params[key];
+      }
+    });
     return params;
   };
 
@@ -205,13 +210,19 @@ export function TransMonitorProvider({
     selectedPayerId: any,
     filters: Filters | null,
   ) => {
-    const filterParams = { ...(filters ?? ({} as Filters)) };
+    const filterParams: any = { ...(filters ?? ({} as Filters)) };
     delete filterParams.status;
     delete filterParams.payers;
-    return {
+    const res: any = {
       ...filterParams,
-      payer_id: filters?.payers ? selectedPayerId : filters?.payer_id,
+      payer_id: filters?.payers !== false ? selectedPayerId : filters?.payer_id,
     };
+    Object.keys(res).forEach((key) => {
+      if (res[key] === "" || res[key] === null || res[key] === undefined) {
+        delete res[key];
+      }
+    });
+    return res;
   };
 
   const getTransSummaryFn = useCallback(async (params: any) => {

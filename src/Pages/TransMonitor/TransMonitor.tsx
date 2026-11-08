@@ -121,6 +121,7 @@ export default function TransMonitor() {
   } | null>(null);
 
   const [filterValues, setFilterValues] = useState<Filters | null>(null);
+
   const [payersTablePage, setPayersTablePage] = useState(1);
   const [transSummaryTablePage, setTransSummaryTablePage] = useState(1);
   const [transDetailsTablePage, setTransDetailsTablePage] = useState(1);
@@ -163,6 +164,20 @@ export default function TransMonitor() {
   const [selectedPollDetailsId, setSelectedPollDetailsId] = useState<
     string | number | null
   >(null);
+
+  const handleFilterSubmit = (values: Filters) => {
+    setSelectedPayerId(null);
+    setSelectedTransSummary(null);
+    setSelectedTransSummaryId(null);
+    setSelectedTransDetailsId(null);
+    setSelectedTransErrorId(null);
+    setSelectedTransResponseId(null);
+    setSelectedPollDetailsId(null);
+    setPayersTablePage(1);
+    setTransSummaryTablePage(1);
+    setTransDetailsTablePage(1);
+    setFilterValues(values);
+  };
 
   const [description, setDescription] = useState("");
   const [resourceId, setResourceId] = useState("");
@@ -306,19 +321,30 @@ export default function TransMonitor() {
     selectedSummary: TransSummary | null,
     filters: Filters | null,
   ) => {
-    const activeFilters = filters ?? ({} as Filters);
-    const params = {
+    const activeFilters: any = { ...(filters ?? ({} as Filters)) };
+    const params: any = {
       ...activeFilters,
-      payer_id: activeFilters.payers ? selectedPayerId : activeFilters.payer_id,
-      api_name: activeFilters.status
-        ? selectedSummary?.api_name
-        : activeFilters.api_name,
-      api_function: activeFilters.status
-        ? selectedSummary?.api_function
-        : activeFilters.api_function,
-      status: activeFilters.status ? selectedSummary?.status : "",
+      payer_id:
+        activeFilters.payers !== false ? selectedPayerId : activeFilters.payer_id,
+      api_name:
+        activeFilters.status !== false && selectedSummary
+          ? selectedSummary.api_name
+          : activeFilters.api_name,
+      api_function:
+        activeFilters.status !== false && selectedSummary
+          ? selectedSummary.api_function
+          : activeFilters.api_function,
+      status:
+        activeFilters.status !== false && selectedSummary
+          ? selectedSummary.status
+          : activeFilters.transaction_status,
     };
     delete params.payers;
+    Object.keys(params).forEach((key) => {
+      if (params[key] === "" || params[key] === null || params[key] === undefined) {
+        delete params[key];
+      }
+    });
     return params;
   };
 
@@ -837,7 +863,7 @@ export default function TransMonitor() {
           onChange={handleFileChange}
         />
         <FilterForm
-          setFilterValues={setFilterValues}
+          setFilterValues={handleFilterSubmit}
           refetchRefPayer={refetchRefPayer}
           refetchRefSummary={refetchRefSummary}
         />
@@ -855,7 +881,7 @@ export default function TransMonitor() {
             <Secure.GLCustomTable2
               permission={`${PERMISSIONS_PREFIXES.transMonitor}payers`}
               fetcher={fetcher}
-              url="/transMonitor/payers"
+              url={filterValues ? "/transMonitor/payers" : ""}
               params={getPayersParams(filterValues)}
               getRowId={(row: any) => row.payer_id}
               loading={transMonitorContextData.isLoading.getPayersReq}
@@ -984,7 +1010,12 @@ export default function TransMonitor() {
             <Secure.GLCustomTable2
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transSummary`}
               fetcher={fetcher}
-              url="/transMonitor/trans_summaries"
+              url={
+                filterValues &&
+                (filterValues.payers === false || selectedPayerId != null)
+                  ? "/transMonitor/trans_summaries"
+                  : ""
+              }
               params={getTransSummaryParams(selectedPayerId, filterValues)}
               getRowId={(row: TransSummary) =>
                 `${row.api_function}-${row.api_name}-${row.status}`
@@ -1182,7 +1213,13 @@ export default function TransMonitor() {
           <Secure.GLCustomTable2
             permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetails`}
             fetcher={fetcher}
-            url="/transMonitor/trans_details"
+            url={
+              filterValues &&
+              (filterValues.payers === false || selectedPayerId != null) &&
+              (filterValues.status === false || selectedTransSummary != null)
+                ? "/transMonitor/trans_details"
+                : ""
+            }
             params={getTransDetailsParams(
               selectedPayerId,
               selectedTransSummary,
@@ -1923,7 +1960,7 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transErrorsTable`}
                 fetcher={fetcher}
-                url={`/transMonitor/trans_errors`}
+                url={selectedTransDetailsId ? "/transMonitor/trans_errors" : ""}
                 params={{ trans_id: selectedTransDetailsId }}
                 loading={transMonitorContextData.isLoading.getTransErrorsReq}
                 smallSize
@@ -2016,7 +2053,7 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transResponses`}
                 fetcher={fetcher}
-                url={`/transMonitor/trans_responses`}
+                url={selectedTransDetailsId ? "/transMonitor/trans_responses" : ""}
                 params={{ trans_id: selectedTransDetailsId }}
                 loading={transMonitorContextData.isLoading.getTransResponsesReq}
                 smallSize
@@ -2151,7 +2188,7 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}pollDetails`}
                 fetcher={fetcher}
-                url={`/transMonitor/poll_details`}
+                url={selectedTransDetailsId ? "/transMonitor/poll_details" : ""}
                 params={{ trans_id: selectedTransDetailsId }}
                 loading={transMonitorContextData.isLoading.getPollDetailsReq}
                 smallSize

@@ -130,7 +130,6 @@ const FilterForm = ({
       setFilterValues(data);
       handleSubmit(effectiveValues);
       refetchRefPayer?.current?.();
-      refetchRefSummary?.current?.();
     },
   });
 
