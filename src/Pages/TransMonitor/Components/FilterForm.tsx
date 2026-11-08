@@ -97,21 +97,38 @@ const FilterForm = ({
     validationSchema: Yup.object({
       date_start: Yup.date().required("Start Date is required"),
     }),
-    onSubmit: (values) => {
-      const date_start = dayjs(formik.values.date_start)
+    onSubmit: (values, formikHelpers) => {
+      let dateStartValue = values.date_start;
+      let dateEndValue = values.date_end;
+
+      if (quickTimeRange) {
+        const { start, end } = getQuickTimeRange(quickTimeRange);
+        dateStartValue = start;
+        dateEndValue = end;
+        formikHelpers.setFieldValue("date_start", start);
+        formikHelpers.setFieldValue("date_end", end);
+      }
+
+      const date_start = dayjs(dateStartValue)
         .format("YYYY-MM-DD HH:mm")
         .toLowerCase();
-      const date_end = formik.values.date_end
-        ? dayjs(formik.values.date_end).format("YYYY-MM-DD HH:mm").toLowerCase()
+      const date_end = dateEndValue
+        ? dayjs(dateEndValue).format("YYYY-MM-DD HH:mm").toLowerCase()
         : null;
 
-      const data: any = { ...values, date_start, date_end };
+      const effectiveValues = {
+        ...values,
+        date_start: dateStartValue,
+        date_end: dateEndValue,
+      };
+
+      const data: any = { ...effectiveValues, date_start, date_end };
       delete data?.patient;
       if (values.patient) {
         data.patient_id = (values.patient as any)?.patient_id;
       }
       setFilterValues(data);
-      handleSubmit(values);
+      handleSubmit(effectiveValues);
       refetchRefPayer?.current?.();
       refetchRefSummary?.current?.();
     },
@@ -428,7 +445,7 @@ const FilterForm = ({
                     clearable: true,
                     onClear: () => {
                       setQuickTimeRange("");
-                      formik.setFieldValue("date_start", null);
+                      formik.setFieldValue("date_end", null);
                     },
                   },
                   textField: {
@@ -438,7 +455,10 @@ const FilterForm = ({
                       formik.touched.date_end &&
                       Boolean(formik.errors.date_end),
                     helperText:
-                      formik.touched.date_end && formik.errors.date_end,
+                      formik.touched.date_end &&
+                      typeof formik.errors.date_end === "string"
+                        ? formik.errors.date_end
+                        : undefined,
                   },
                 }}
               />
@@ -610,7 +630,32 @@ const FilterForm = ({
                 )}
               />
             </Box>
-
+            <Box
+              sx={{
+                "& .MuiFormControlLabel-root": {
+                  marginInline: "0 !important",
+                  whiteSpace: "nowrap",
+                },
+              }}
+            >
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    name="all_facilities"
+                    color="success"
+                    checked={formik.values.all_facilities}
+                    onChange={(e: any) => {
+                      formik.setFieldValue("all_facilities", e.target.checked);
+                    }}
+                    sx={{
+                      "& .MuiSvgIcon-root": { fontSize: 20 },
+                      padding: "4px",
+                    }}
+                  />
+                }
+                label="All Facilities"
+              />
+            </Box>
             <Box
               sx={{
                 flex: "0 0 auto",
@@ -803,35 +848,6 @@ const FilterForm = ({
                 />
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    "& .MuiFormControlLabel-root": {
-                      marginInline: "0 !important",
-                      whiteSpace: "nowrap",
-                    },
-                  }}
-                >
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        name="all_facilities"
-                        color="success"
-                        checked={formik.values.all_facilities}
-                        onChange={(e: any) => {
-                          formik.setFieldValue(
-                            "all_facilities",
-                            e.target.checked,
-                          );
-                        }}
-                        sx={{
-                          "& .MuiSvgIcon-root": { fontSize: 20 },
-                          padding: "4px",
-                        }}
-                      />
-                    }
-                    label="All Facilities"
-                  />
-                </Box>
                 <Typography
                   variant="body2"
                   sx={{ fontWeight: 600, whiteSpace: "nowrap" }}

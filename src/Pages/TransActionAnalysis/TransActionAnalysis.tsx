@@ -9,7 +9,7 @@ export default function TransActionAnalysis() {
       <Box>
         <ErrorGraph
           apiUrl={`/transaction-analysis/error-graph`}
-          title="Error Statistics Over Time"
+          title="Status Statistics Over Time"
         />
       </Box>
     </Box>

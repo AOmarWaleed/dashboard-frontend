@@ -12,8 +12,8 @@ export interface ApiTransactionOptionsInput {
   api_name?: string | null;
   api_function?: string | null;
   status?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
+  date_start?: string | null;
+  date_end?: string | null;
   all_facilities?: boolean;
   facility_id?: string | number | null;
 }
@@ -41,8 +41,8 @@ export function useApiTransactionOptions(input: ApiTransactionOptionsInput) {
     api_name,
     api_function,
     status,
-    start_date,
-    end_date,
+    date_start,
+    date_end,
     all_facilities,
     facility_id,
   } = input;
@@ -55,8 +55,8 @@ export function useApiTransactionOptions(input: ApiTransactionOptionsInput) {
     dashboardAxios
       .get("/transactionTimeline/filter-options", {
         params: {
-          ...(start_date ? { start_date } : {}),
-          ...(end_date ? { end_date } : {}),
+          ...(date_start ? { date_start } : {}),
+          ...(date_end ? { date_end } : {}),
           ...(payer_id ? { payer_id } : {}),
           ...(api_provider ? { api_provider } : {}),
           ...(api_name ? { api_name } : {}),
@@ -82,8 +82,8 @@ export function useApiTransactionOptions(input: ApiTransactionOptionsInput) {
     api_name,
     api_function,
     status,
-    start_date,
-    end_date,
+    date_start,
+    date_end,
     all_facilities,
     facility_id,
   ]);

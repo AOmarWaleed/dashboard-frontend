@@ -2100,7 +2100,6 @@ export default function TransMonitor() {
                                     response_id: params.row.response_id,
                                   })
                                   .then(async (res) => {
-                                    console.log(res.data, "respinnnnnnse");
                                     toast.success(
                                       `Success ${
                                         res.data.req_id
@@ -2251,7 +2250,6 @@ export default function TransMonitor() {
                                     response_id: params.row.response_id,
                                   })
                                   .then(async (res) => {
-                                    console.log(res.data, "respinnnnnnse");
                                     toast.success(
                                       `Success ${
                                         res.data.req_id

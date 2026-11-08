@@ -23,7 +23,11 @@ import OverviewSection from "./components/OverviewSection";
 import TransactionsByDateSection from "./components/TransactionsByDateSection";
 import TransactionsByHourSection from "./components/TransactionsByHourSection";
 import dayjs from "dayjs";
-import { DISPLAY_DATE_TIME_FORMAT } from "../../utils/dateFormat";
+import {
+  API_DATE_TIME_MINUTES_FORMAT,
+  DISPLAY_DATE_TIME_FORMAT,
+  formatDateTime,
+} from "../../utils/dateFormat";
 
 // import NphiesTopFailsSection from "./components/NphiesTopFailsSections";
 import ClaimsByPayerSection from "./components/ClaimsByPayerSection";
@@ -51,8 +55,8 @@ export type ReportRowData = Array<Record<string, unknown>> | ReportPayload;
 export type FetchData = (endPoint: string, setRows: Dispatch<SetStateAction<any>>) => Promise<any>;
 
 export type SearchParams = {
-  start_date: string | null;
-  end_date: string | null;
+  date_start: string | null;
+  date_end: string | null;
   payer_id: string | null;
   api_name: string | null;
   api_provider: string | null;
@@ -91,8 +95,8 @@ export default function TransactionTimeline({
     DEFAULT_QUICK_TIME_RANGE,
   );
   const [submittedParams, setSubmittedParams] = useState<SearchParams>({
-    start_date: defaultStart.toISOString(),
-    end_date: defaultEnd.toISOString(),
+    date_start: formatDateTime(defaultStart, API_DATE_TIME_MINUTES_FORMAT) ?? null,
+    date_end: formatDateTime(defaultEnd, API_DATE_TIME_MINUTES_FORMAT) ?? null,
     payer_id: null,
     api_name: null,
     api_provider: null,
@@ -104,15 +108,15 @@ export default function TransactionTimeline({
   const ctx = useContext(AuthGuardContext);
   const t = ctx?.t ?? ((key: string) => key);
 
-  const toISOStringOrNull = (
-    v: string | number | Date | Dayjs | null | undefined,
-  ) => (v && dayjs(v).isValid() ? dayjs(v).toISOString() : null);
+  const toApiDateTimeOrNull = (
+    v: Dayjs | string | null | undefined,
+  ) => formatDateTime(v, API_DATE_TIME_MINUTES_FORMAT) ?? null;
 
   // Formik initialization
   const formik = useFormik({
     initialValues: {
-      start_date: defaultStart,
-      end_date: defaultEnd,
+      date_start: defaultStart,
+      date_end: defaultEnd,
       all_facilities: false,
       payer_id: null as string | null,
       api_name: null as string | null,
@@ -121,10 +125,10 @@ export default function TransactionTimeline({
     status: null as string | null,
     },
     validationSchema: Yup.object({
-      start_date: Yup.date().required(
+      date_start: Yup.date().required(
         t("transactionAnalysis_30_StartDateRequired"),
       ),
-      end_date: Yup.date()
+      date_end: Yup.date()
         .nullable()
         .test(
           "is-after-start",
@@ -132,25 +136,25 @@ export default function TransactionTimeline({
           function (value) {
             return (
               !value ||
-              !this.parent.start_date ||
-              dayjs(value).isAfter(dayjs(this.parent.start_date))
+              !this.parent.date_start ||
+              dayjs(value).isAfter(dayjs(this.parent.date_start))
             );
           },
         ),
     }),
     onSubmit: (values, formikHelpers) => {
-      let start_date = values.start_date;
-      let end_date = values.end_date;
+      let date_start = values.date_start;
+      let date_end = values.date_end;
       if (quickTimeRange) {
         const { start, end } = getQuickTimeRange(quickTimeRange);
-        start_date = start;
-        end_date = end;
-        formikHelpers.setFieldValue("start_date", start);
-        formikHelpers.setFieldValue("end_date", end);
+        date_start = start;
+        date_end = end;
+        formikHelpers.setFieldValue("date_start", start);
+        formikHelpers.setFieldValue("date_end", end);
       }
       setSubmittedParams({
-        start_date: toISOStringOrNull(start_date),
-        end_date: toISOStringOrNull(end_date),
+        date_start: toApiDateTimeOrNull(date_start),
+        date_end: toApiDateTimeOrNull(date_end),
         payer_id: values.payer_id,
         api_name: values.api_name,
         api_provider: values.api_provider,
@@ -168,8 +172,8 @@ export default function TransactionTimeline({
       api_name: formik.values.api_name,
       api_function: formik.values.api_function,
       status: formik.values.status,
-      start_date: toISOStringOrNull(formik.values.start_date),
-      end_date: toISOStringOrNull(formik.values.end_date),
+      date_start: toApiDateTimeOrNull(formik.values.date_start),
+      date_end: toApiDateTimeOrNull(formik.values.date_end),
       all_facilities: formik.values.all_facilities,
       facility_id: facilityId,
     });
@@ -195,8 +199,8 @@ export default function TransactionTimeline({
         const endpoint = `/transactionTimeline/${endPoint}`;
         const { data } = await dashboardAxios.get(endpoint, {
           params: {
-            start_date: effectiveParams.start_date,
-            end_date: effectiveParams.end_date,
+            date_start: effectiveParams.date_start,
+            date_end: effectiveParams.date_end,
             payer_id: effectiveParams.payer_id,
             api_name: effectiveParams.api_name,
             api_provider: effectiveParams.api_provider,
@@ -246,8 +250,8 @@ export default function TransactionTimeline({
     formik.resetForm();
     setQuickTimeRange("");
     setSubmittedParams({
-      start_date: dayjs().subtract(30, "day").toISOString(),
-      end_date: dayjs().toISOString(),
+      date_start: toApiDateTimeOrNull(dayjs().subtract(30, "day")),
+      date_end: toApiDateTimeOrNull(dayjs()),
       payer_id: null,
       api_name: null,
       api_provider: null,
@@ -269,8 +273,8 @@ export default function TransactionTimeline({
                 setQuickTimeRange(range);
                 formik.setValues({
                   ...formik.values,
-                  start_date: start,
-                  end_date: end,
+                  date_start: start,
+                  date_end: end,
                 });
               }}
             />
@@ -279,11 +283,11 @@ export default function TransactionTimeline({
             <DateTimePicker
               label={t("transactionAnalysis_30_StartDate")}
               format={DISPLAY_DATE_TIME_FORMAT}
-              value={formik.values.start_date}
+              value={formik.values.date_start}
               views={["year", "day", "hours", "minutes", "seconds"]}
               onChange={(value) => {
                 setQuickTimeRange("");
-                formik.setFieldValue("start_date", value);
+                formik.setFieldValue("date_start", value);
                 formik.setFieldValue("payer_id", null);
                 formik.setFieldValue("api_provider", null);
                 formik.setFieldValue("api_name", null);
@@ -298,10 +302,10 @@ export default function TransactionTimeline({
                     "> .MuiOutlinedInput-root": {},
                   },
                   error:
-                    formik.touched.start_date &&
-                    Boolean(formik.errors.start_date),
+                    formik.touched.date_start &&
+                    Boolean(formik.errors.date_start),
                   helperText: (
-                    <>{formik.touched.start_date && formik.errors.start_date}</>
+                    <>{formik.touched.date_start && formik.errors.date_start}</>
                   ),
                 },
               }}
@@ -312,11 +316,11 @@ export default function TransactionTimeline({
               label={t("transactionAnalysis_30_EndDate")}
               views={["year", "day", "hours", "minutes", "seconds"]}
               format={DISPLAY_DATE_TIME_FORMAT}
-              value={formik.values.end_date}
-              minDate={formik.values.start_date}
+              value={formik.values.date_end}
+              minDate={formik.values.date_start}
               onChange={(value) => {
                 setQuickTimeRange("");
-                formik.setFieldValue("end_date", value);
+                formik.setFieldValue("date_end", value);
                 formik.setFieldValue("payer_id", null);
                 formik.setFieldValue("api_provider", null);
                 formik.setFieldValue("api_name", null);
@@ -326,7 +330,7 @@ export default function TransactionTimeline({
               slotProps={{
                 field: {
                   clearable: true,
-                  onClear: () => formik.setFieldValue("end_date", null),
+                  onClear: () => formik.setFieldValue("date_end", null),
                 },
                 textField: {
                   size: "small",
@@ -335,9 +339,9 @@ export default function TransactionTimeline({
                     "> .MuiOutlinedInput-root": {},
                   },
                   error:
-                    formik.touched.end_date && Boolean(formik.errors.end_date),
+                    formik.touched.date_end && Boolean(formik.errors.date_end),
                   helperText: (
-                    <>{formik.touched.end_date && formik.errors.end_date}</>
+                    <>{formik.touched.date_end && formik.errors.date_end}</>
                   ),
                 },
               }}

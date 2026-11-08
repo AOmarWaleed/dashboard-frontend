@@ -55,8 +55,8 @@ const TransactionsByHourSection: FC<Omit<TabProps, "page">> = ({
   }, [
     fetchData,
     ctx,
-    searchParams?.start_date,
-    searchParams?.end_date,
+    searchParams?.date_start,
+    searchParams?.date_end,
     searchParams?.payer_id,
     searchParams?.api_name,
     searchParams?.api_provider,

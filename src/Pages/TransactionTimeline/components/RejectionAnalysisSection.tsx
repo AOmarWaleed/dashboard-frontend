@@ -107,7 +107,7 @@ const RejectionAnalysisSection = ({ searchParams, page }: TabProps) => {
               goToClaim(
                 params.row.api_trans_id,
                 params.row.payer_id,
-                searchParams.start_date
+                searchParams.date_start
               );
             }}
             variant="contained"
