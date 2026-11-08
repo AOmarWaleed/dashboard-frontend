@@ -593,6 +593,7 @@ export default function TransMonitor() {
     };
   }, []);
 
+  /* Legacy DataGrid manual effects disabled to prevent duplicate/competing requests with GLCustomTable2
   useEffect(() => {
     if (filterValues) {
       resetPages();
@@ -731,6 +732,8 @@ export default function TransMonitor() {
     }
   }, [selectedTransSummaryId, transDetailsPage, selectedPayerId]);
 
+
+  */
   useEffect(() => {
     getTransErrors(selectedTransDetailsId || -1, transErrorsPage, limit);
   }, [transErrorsPage]);
