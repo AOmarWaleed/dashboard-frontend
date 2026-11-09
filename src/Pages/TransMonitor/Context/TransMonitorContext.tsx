@@ -213,30 +213,12 @@ export function TransMonitorProvider({
   const getTransSummaryParams = useCallback(
     (selectedPayerId: any, filters: Filters | null) => {
       const filterParams = { ...(filters ?? ({} as Filters)) };
-      const groupByPayers = filterParams.payers !== false;
-
       delete filterParams.status;
       delete filterParams.payers;
-
-      const finalPayerId = groupByPayers ? selectedPayerId : filters?.payer_id;
-
-      const params: any = {
+      return {
         ...filterParams,
+        payer_id: filters?.payers ? selectedPayerId : filters?.payer_id,
       };
-
-      if (finalPayerId != null && finalPayerId !== "") {
-        params.payer_id = finalPayerId;
-      } else {
-        delete params.payer_id;
-      }
-
-      Object.keys(params).forEach((key) => {
-        if (params[key] === "" || params[key] === undefined || params[key] === null) {
-          delete params[key];
-        }
-      });
-
-      return params;
     },
     [],
   );
@@ -247,56 +229,19 @@ export function TransMonitorProvider({
       selectedSummary: TransSummary | null,
       filters: Filters | null,
     ) => {
-      const activeFilters = { ...(filters ?? ({} as Filters)) };
-      const groupByPayers = activeFilters.payers !== false;
-      const groupByStatus = activeFilters.status !== false;
-
-      // Always remove frontend checkbox flags
-      delete activeFilters.payers;
-      delete activeFilters.status;
-
-      const params: any = {
+      const activeFilters = filters ?? ({} as Filters);
+      const params = {
         ...activeFilters,
+        payer_id: activeFilters.payers ? selectedPayerId : activeFilters.payer_id,
+        api_name: activeFilters.status
+          ? selectedSummary?.api_name
+          : activeFilters.api_name,
+        api_function: activeFilters.status
+          ? selectedSummary?.api_function
+          : activeFilters.api_function,
+        status: activeFilters.status ? selectedSummary?.status : "",
       };
-
-      // When groupByPayers is checked, filter by selected payer from table.
-      // When unchecked, transdetails is fetched without payer_id.
-      if (groupByPayers && selectedPayerId != null && selectedPayerId !== "") {
-        params.payer_id = selectedPayerId;
-      } else {
-        delete params.payer_id;
-      }
-
-      if (selectedSummary) {
-        if (selectedSummary.api_name) {
-          params.api_name = selectedSummary.api_name;
-        }
-        if (
-          selectedSummary.api_function &&
-          selectedSummary.api_function !== "--" &&
-          selectedSummary.api_function !== "null"
-        ) {
-          params.api_function = selectedSummary.api_function;
-        } else {
-          delete params.api_function;
-        }
-
-        // Only include status if groupByStatus is checked
-        if (groupByStatus && selectedSummary.status) {
-          params.status = selectedSummary.status;
-        } else {
-          delete params.status;
-        }
-      } else {
-        delete params.status;
-      }
-
-      Object.keys(params).forEach((key) => {
-        if (params[key] === "" || params[key] === undefined || params[key] === null) {
-          delete params[key];
-        }
-      });
-
+      delete params.payers;
       return params;
     },
     [],
