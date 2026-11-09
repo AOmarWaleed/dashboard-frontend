@@ -457,13 +457,6 @@ export default function TransMonitor() {
               limit={limit}
               smallSize
               refetchRef={refetchRefPayer}
-              handleDataChange={(rows: Payers[]) => {
-                if (rows && rows.length > 0) {
-                  updateSelectedPayerFn(rows[0].payer_id);
-                } else {
-                  updateSelectedPayerFn(null);
-                }
-              }}
               onRowSelected={(row: Payers | null) =>
                 updateSelectedPayerFn(row?.payer_id != null ? row.payer_id : null)
               }
@@ -526,13 +519,6 @@ export default function TransMonitor() {
               sx={{ maxHeight: "35vh" }}
               smallSize
               limit={limit}
-              handleDataChange={(rows: TransSummary[]) => {
-                if (rows && rows.length > 0) {
-                  updateSelectedTransSummaryFn(rows[0]);
-                } else {
-                  updateSelectedTransSummaryFn(null);
-                }
-              }}
               columns={
                 [
                   {
@@ -630,13 +616,6 @@ export default function TransMonitor() {
             smallSize
             getRowId={(row: any) => row.api_trans_id}
             limit={limit}
-            handleDataChange={(rows: TransDetails[]) => {
-              if (rows && rows.length > 0) {
-                updateSelectedTransDetailsFn(rows[0]);
-              } else {
-                updateSelectedTransDetailsFn(null);
-              }
-            }}
             initialHiddenColumns={[
               "bundle_id",
               "response_time_ms",
