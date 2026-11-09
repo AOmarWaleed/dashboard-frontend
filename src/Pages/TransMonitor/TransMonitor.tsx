@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTransMonitorContext } from "./Context/TransMonitorContext";
 import type {
   Payers,
@@ -50,12 +50,6 @@ const limit = 5;
 export default function TransMonitor() {
   const {
     transMonitorContextData,
-    getPayersFn,
-    getTransSummaryFn,
-    getTransDetailsFn,
-    getTransErrorsFn,
-    getTransResponsesFn,
-    getPollDetailsFn,
     updateSelectedPayerFn,
     updateSelectedTransSummaryFn,
     updateSelectedTransDetailsFn,
@@ -63,41 +57,6 @@ export default function TransMonitor() {
     getPayersParams,
     getTransSummaryParams,
   } = useTransMonitorContext();
-
-  const isCanceled = (error: any) => error?.code === "ERR_CANCELED";
-
-  // const [
-  //   transDetailsColumnVisibilityModel,
-  //   setTransDetailsColumnVisibilityModel,
-  // ] = useState(() => {
-  //   // Try to get saved visibility from localStorage
-  //   const savedVisibility = localStorage.getItem(
-  //     "transMonitor_columnVisibility",
-  //   );
-  //   if (savedVisibility) {
-  //     try {
-  //       return JSON.parse(savedVisibility);
-  //     } catch (e) {
-  //       console.error("Failed to parse saved column visibility:", e);
-  //     }
-  //   }
-  //   // Return default visibility if nothing saved
-  //   return {
-  //     bundle_id: false,
-  //     response_time_ms: false,
-  //     trans_date : false,
-  //     elapsed_time_ms: false,
-  //     preprocess_time_ms: false,
-  //     local_api_time_ms: false,
-  //   };
-  // });
-
-  // useEffect(() => {
-  //   localStorage.setItem(
-  //     "transMonitor_columnVisibility",
-  //     JSON.stringify(transDetailsColumnVisibilityModel),
-  //   );
-  // }, [transDetailsColumnVisibilityModel]);
 
   const getSummaryRowId = (row: TransSummary) =>
     `${row.api_function}-${row.api_name}-${row.status}`;
@@ -114,6 +73,7 @@ export default function TransMonitor() {
     status?: string;
     orderLine?: string;
   } | null>(null);
+  
   const [hl7ResponseDialogOpen, setHl7ResponseDialogOpen] = useState(false);
   const [hl7ResponseData, setHl7ResponseData] = useState<{
     description: string;
@@ -121,63 +81,21 @@ export default function TransMonitor() {
   } | null>(null);
 
   const [filterValues, setFilterValues] = useState<Filters | null>(null);
-
-  const [payersTablePage, setPayersTablePage] = useState(1);
-  const [transSummaryTablePage, setTransSummaryTablePage] = useState(1);
-  const [transDetailsTablePage, setTransDetailsTablePage] = useState(1);
-
-  const [payers, setPayers] = useState<Payers[]>([]);
-  const [payersPage] = useState(1);
-
   const selectedPayerId = transMonitorContextData.selectionObj.payerId || null;
   const setSelectedPayerId = updateSelectedPayerFn;
 
-  const [transSummaries, setTransSummaries] = useState<TransSummary[]>([]);
-  const [transSummaryPage, setTransSummaryPage] = useState(1);
-
-  const [selectedTransSummary, setSelectedTransSummary] =
-    useState<TransSummary | null>(null);
-  const selectedTransSummaryId =
-    transMonitorContextData.selectionObj.transSummaryId || null;
+  const [selectedTransSummary, setSelectedTransSummary] = useState<TransSummary | null>(null);
   const setSelectedTransSummaryId = updateSelectedTransSummaryFn;
 
-  const [transDetails, setTransDetails] = useState<TransDetails[]>([]);
-  const [transDetailsPage, setTransDetailsPage] = useState(1);
-
-  const selectedTransDetailsId =
-    transMonitorContextData.selectionObj.transDetailsId || null;
+  const selectedTransDetailsId = transMonitorContextData.selectionObj.transDetailsId || null;
+  const [selectedTransDetail, setSelectedTransDetail] = useState<any>();
   const setSelectedTransDetailsId = updateSelectedTransDetailsFn;
 
   const [selectedTab, setSelectedTab] = useState("errors");
 
-  const [transErrors, setTransErrors] = useState<TransError[]>([]);
-  const [transErrorsPage] = useState(1);
-
   const setSelectedTransErrorId = updateSelectedTransErrorFn;
-
-  const [transResponses, setTransResponses] = useState<TransResponse[]>([]);
-  const [transResponsesPage] = useState(1);
   const [, setSelectedTransResponseId] = useState<string | number | null>(null);
-
-  const [pollDetails, setPollDetails] = useState<PollDetails[]>([]);
-  const [pollDetailsPage] = useState(1);
-  const [selectedPollDetailsId, setSelectedPollDetailsId] = useState<
-    string | number | null
-  >(null);
-
-  const handleFilterSubmit = (values: Filters) => {
-    setSelectedPayerId(null);
-    setSelectedTransSummary(null);
-    setSelectedTransSummaryId(null);
-    setSelectedTransDetailsId(null);
-    setSelectedTransErrorId(null);
-    setSelectedTransResponseId(null);
-    setSelectedPollDetailsId(null);
-    setPayersTablePage(1);
-    setTransSummaryTablePage(1);
-    setTransDetailsTablePage(1);
-    setFilterValues(values);
-  };
+  const [selectedPollDetailsId, setSelectedPollDetailsId] = useState<string | number | null>(null);
 
   const [description, setDescription] = useState("");
   const [resourceId, setResourceId] = useState("");
@@ -185,8 +103,7 @@ export default function TransMonitor() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const [adminMenuAnchorEl, setAdminMenuAnchorEl] =
-    useState<null | HTMLElement>(null);
+  const [adminMenuAnchorEl, setAdminMenuAnchorEl] = useState<null | HTMLElement>(null);
   const adminMenuOpen = Boolean(adminMenuAnchorEl);
 
   const handleAdminMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -197,67 +114,36 @@ export default function TransMonitor() {
     setAdminMenuAnchorEl(null);
   };
 
-  const handleTransSummaryPageChange = (page: number) => {
-    setTransSummaryTablePage(page);
-    setSelectedTransSummary(null);
-    setSelectedTransSummaryId(null);
-    setTransDetailsTablePage(1);
-  };
-
-  const resetPages = () => {
-    setPayers([]);
-    setPayersTablePage(1);
-
-    setTransSummaries([]);
-    setTransSummaryPage(1);
-    setTransSummaryTablePage(1);
-
-    setTransDetails([]);
-    setTransDetailsTablePage(1);
-
-    setTransErrors([]);
-
-    setTransResponses([]);
-
-    setPollDetails([]);
-
-    setSelectedPayerId(null);
-    setSelectedTransDetailsId(null);
-    setSelectedTransSummaryId(null);
-    setSelectedTransSummary(null);
-    setSelectedTransErrorId(null);
-    setSelectedTransResponseId(null);
-    setSelectedPollDetailsId(null);
-  };
-
-  // Dependent tables reset when upstream selection changes (standard master-detail pattern)
-  useEffect(() => {
-    setTransSummaryTablePage(1);
-    setTransDetailsTablePage(1);
-  }, [selectedPayerId]);
+  const [payerPage, setPayerPage] = useState(1);
+  const [summaryPage, setSummaryPage] = useState(1);
+  const [detailsPage, setDetailsPage] = useState(1);
+  const [errorsPage, setErrorsPage] = useState(1);
+  const [responsePage, setResponsePage] = useState(1);
+  const [pollDetailsPage, setPollDetailsPage] = useState(1);
 
   useEffect(() => {
-    setTransDetailsTablePage(1);
-  }, [selectedTransSummaryId]);
+    setPayerPage(1);
+  }, [filterValues]);
 
-  const getPayers = (
-    page: number,
-    limit: number,
-    filters: Filters,
-    next?: () => void,
-  ) => {
-    getPayersFn({ page, limit, filters })
-      .then((r) => {
-        setPayers(r.data);
-      })
-      .catch((error) => {
-        if (isCanceled(error)) return;
-        setPayers([]);
-      })
-      .finally(() => {
-        if (next) next();
-      });
-  };
+  useEffect(() => {
+    setSummaryPage(1);
+  }, [selectedPayerId, filterValues]);
+
+  useEffect(() => {
+    setDetailsPage(1);
+  }, [selectedPayerId, selectedTransSummary, filterValues]);
+
+  useEffect(() => {
+    setErrorsPage(1);
+  }, [selectedTransDetailsId]);
+
+  useEffect(() => {
+    setResponsePage(1);
+  }, [selectedTransDetailsId]);
+
+  useEffect(() => {
+    setPollDetailsPage(1);
+  }, [selectedTransDetailsId]);
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -295,143 +181,25 @@ export default function TransMonitor() {
     }
   };
 
-  const getTransSummaries = (
-    page: number,
-    limit: number,
-    selectedPayerId: any,
-    filters: Filters,
-  ) => {
-    getTransSummaryFn({
-      page,
-      limit,
-      payer_id: selectedPayerId,
-      filters,
-    })
-      .then((r) => {
-        setTransSummaries(r.data);
-      })
-      .catch((error) => {
-        if (isCanceled(error)) return;
-        setTransSummaries([]);
-      });
-  };
-
   const getTransDetailsParams = (
     selectedPayerId: any,
     selectedSummary: TransSummary | null,
     filters: Filters | null,
   ) => {
-    const activeFilters: any = { ...(filters ?? ({} as Filters)) };
-    const params: any = {
+    const activeFilters = filters ?? ({} as Filters);
+    const params = {
       ...activeFilters,
-      payer_id:
-        activeFilters.payers !== false ? selectedPayerId : activeFilters.payer_id,
-      api_name:
-        activeFilters.status !== false && selectedSummary
-          ? selectedSummary.api_name
-          : activeFilters.api_name,
-      api_function:
-        activeFilters.status !== false && selectedSummary
-          ? selectedSummary.api_function
-          : activeFilters.api_function,
-      status:
-        activeFilters.status !== false && selectedSummary
-          ? selectedSummary.status
-          : activeFilters.transaction_status,
+      payer_id: activeFilters.payers ? selectedPayerId : activeFilters.payer_id,
+      api_name: activeFilters.status
+        ? selectedSummary?.api_name
+        : activeFilters.api_name,
+      api_function: activeFilters.status
+        ? selectedSummary?.api_function
+        : activeFilters.api_function,
+      status: activeFilters.status ? selectedSummary?.status : "",
     };
     delete params.payers;
-    Object.keys(params).forEach((key) => {
-      if (params[key] === "" || params[key] === null || params[key] === undefined) {
-        delete params[key];
-      }
-    });
     return params;
-  };
-
-  const getTransDetails = (
-    page: number,
-    limit: number,
-    selectedPayerId: any,
-    selectedTransSummaryId: any,
-    filters: Filters,
-  ) => {
-    const selectedSummryRow = transSummaries?.find(
-      (row: TransSummary) =>
-        `${row.api_function}-${row.api_name}-${row.status}` ===
-        selectedTransSummaryId,
-    );
-
-    const { api_name, api_function, status } = selectedSummryRow || {};
-
-    getTransDetailsFn({
-      page,
-      limit,
-      api_name,
-      api_function,
-      status,
-      payer_id: selectedPayerId,
-      filters,
-    })
-      .then((r) => {
-        setTransDetails(r.data);
-      })
-      .catch((error) => {
-        if (isCanceled(error)) return;
-        setTransDetails([]);
-      });
-  };
-
-  const getTransErrors = (
-    trans_id: string | number,
-    page: number,
-    limit: number,
-  ) => {
-    getTransErrorsFn({ trans_id, page, limit })
-      .then((r) => {
-        console.log(r);
-
-        setTransErrors(r.data);
-      })
-      .catch((error) => {
-        if (isCanceled(error)) return;
-        setTransErrors([]);
-
-        console.error("Failed to fetch errors:", error);
-      });
-  };
-
-  const getTransResponses = (
-    trans_id: string | number,
-    page: number,
-    limit: number,
-  ) => {
-    getTransResponsesFn({ trans_id, page, limit })
-      .then((r) => {
-        setTransResponses(r.data);
-      })
-      .catch((error) => {
-        if (isCanceled(error)) return;
-        setTransResponses([]);
-
-        console.error("Failed to fetch responses:", error);
-      });
-  };
-
-  const getPollDetails = (
-    trans_id: string | number,
-    page: number,
-    limit: number,
-  ) => {
-    getPollDetailsFn({ trans_id, page, limit })
-      .then((r) => {
-        setPollDetails(r.data);
-      })
-      .catch((error) => {
-        if (isCanceled(error)) return;
-        setPollDetails([]);
-
-        console.error("Failed to fetch poll details:", error);
-      });
   };
 
   const handleResendHl7Msg = (useHttp: boolean) => {
@@ -440,9 +208,6 @@ export default function TransMonitor() {
     const { patientId, episodeNo, messageType } = selectedTransactionData;
     const httpFlag = useHttp ? 1 : 0;
     setIsLoading(true);
-    // episodeNo, http, patientId, messageType
-    // ! send specific msg for specific patient and episodeNo
-    // app.get("/api/v1/hl7"
 
     hl7Axios
       .get(
@@ -457,16 +222,6 @@ export default function TransMonitor() {
         });
 
         setHl7ResponseDialogOpen(true);
-
-        if (filterValues) {
-          getTransDetails(
-            transDetailsPage,
-            limit,
-            selectedPayerId,
-            selectedTransSummaryId,
-            filterValues,
-          );
-        }
       })
       .catch((err) => {
         console.error("HL7 Resend Error:", err);
@@ -481,85 +236,39 @@ export default function TransMonitor() {
         setIsLoading(false);
       });
   };
+
   const handleResendHl7Click = async () => {
     if (!selectedTransDetailsId) {
       console.error("No transaction selected");
       return;
     }
 
-    const selectedTrans = transDetails.find(
-      (trans) => trans.api_trans_id === selectedTransDetailsId,
-    );
-
-    if (!selectedTrans) {
+    if (!selectedTransDetail) {
       console.error("Selected transaction not found");
       return;
     }
 
-    // if (
-    //   selectedTrans.api_name == "MEDICATION" ||
-    //   selectedTrans.api_name == "RADIOLOGY" ||
-    //   selectedTrans.api_name == "LAB"
-    // ) {
-    //   const url = selectedTrans.url;
-
-    //   try {
-    //     setLoading(true);
-    //     const { data } = await normalAxios.get(url);
-    //     const responseData = data?.data;
-    //     if (!responseData) {
-    //       toast.error("No data received from API");
-    //       throw new Error("No data received from API");
-    //     }
-
-    //     setDescription(responseData.description);
-    //     setResourceId(responseData.msgId);
-    //     setDialogOpen(true);
-    //   } catch (error) {
-    //     if (isAxiosError(error)) {
-    //       console.error(
-    //         "Error fetching medication data:",
-    //         error.response?.data?.msg,
-    //       );
-    //       const description =
-    //         error.response?.data?.description ||
-    //         "Error fetching medication data";
-    //       const resourceId = error.response?.data?.msgId || "Error";
-    //       setDescription(description);
-    //       setResourceId(resourceId);
-    //       setDialogOpen(true);
-    //     } else {
-    //       console.error("Error fetching medication data:", error);
-    //       toast.error("Error fetching medication data");
-    //     }
-    //   } finally {
-    //     setLoading(false);
-    //   }
-
-    //   return;
-    // }
-
     if (
-      selectedTrans.api_name?.toUpperCase() == "MEDICATION" ||
-      selectedTrans.api_name?.toUpperCase() == "RADIOLOGY" ||
-      selectedTrans.api_name?.toUpperCase() == "LAB" ||
-      selectedTrans.api_name?.toUpperCase() == "ADT"
+      selectedTransDetail.api_name?.toUpperCase() == "MEDICATION" ||
+      selectedTransDetail.api_name?.toUpperCase() == "RADIOLOGY" ||
+      selectedTransDetail.api_name?.toUpperCase() == "LAB" ||
+      selectedTransDetail.api_name?.toUpperCase() == "ADT"
     ) {
-      const url = selectedTrans.url;
+      const url = selectedTransDetail.url;
       setSelectedTransactionData({
-        ...(selectedTrans as any),
+        ...(selectedTransDetail as any),
       });
 
       setResendUrl(url);
-      setResendTitle(`Resend ${selectedTrans.api_name} Request`);
+      setResendTitle(`Resend ${selectedTransDetail.api_name} Request`);
       setResendDialogOpen(true);
       return;
     }
 
     setSelectedTransactionData({
-      patientId: selectedTrans.patient_id?.toString() || "",
-      episodeNo: selectedTrans.episode_no?.toString() || "",
-      messageType: selectedTrans.api_function || "",
+      patientId: selectedTransDetail.patient_id?.toString() || "",
+      episodeNo: selectedTransDetail.episode_no?.toString() || "",
+      messageType: selectedTransDetail.api_function || "",
     });
 
     setHl7ResendDialogOpen(true);
@@ -587,188 +296,11 @@ export default function TransMonitor() {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      resetPages();
-    };
-  }, []);
-
-  /* Legacy DataGrid manual effects disabled to prevent duplicate/competing requests with GLCustomTable2
-  useEffect(() => {
-    if (filterValues) {
-      resetPages();
-
-      if (filterValues.payers && !filterValues.status) {
-        getPayers(payersPage, limit, filterValues);
-      } else if (filterValues.status && filterValues.payers) {
-        getPayers(payersPage, limit, filterValues);
-        getTransSummaries(
-          transSummaryPage,
-          limit,
-          selectedPayerId,
-          filterValues,
-        );
-      } else if (filterValues.status && !filterValues.payers) {
-        getPayers(payersPage, limit, filterValues);
-        getTransSummaries(
-          transSummaryPage,
-          limit,
-          selectedPayerId,
-          filterValues,
-        );
-      } else {
-        getPayers(payersPage, limit, filterValues);
-        getTransSummaries(
-          transSummaryPage,
-          limit,
-          selectedPayerId,
-          filterValues,
-        );
-        getTransDetails(
-          transDetailsPage,
-          limit,
-          selectedPayerId,
-          selectedTransSummaryId,
-          filterValues,
-        );
-      }
-    }
-  }, [filterValues]);
-
-  useEffect(() => {
-    if (payers && payers.length > 0 && filterValues?.payers)
-      setSelectedPayerId(payers[0].payer_id);
-  }, [payers]);
-
-  useEffect(() => {
-    setSelectedTransDetailsId(null);
-  }, [selectedTransSummaryId, transDetailsPage]);
-
-  useEffect(() => {
-    if (transDetails.length > 0 && !selectedTransDetailsId)
-      setSelectedTransDetailsId(transDetails[0].api_trans_id);
-
-    if (transDetails.length == 0) {
-      console.log("set transDetails");
-
-      setSelectedTransDetailsId(null);
-    }
-  }, [transDetails]);
-
-  useEffect(() => {
-    if (transErrors.length > 0)
-      setSelectedTransErrorId(transErrors[0].message_id);
-    if (transErrors.length === 0) setSelectedTransErrorId(null);
-  }, [transErrors]);
-
-  useEffect(() => {
-    if (transResponses.length > 0)
-      setSelectedTransResponseId(transResponses[0].response_seq);
-    if (transResponses.length === 0) setSelectedTransResponseId(null);
-  }, [transResponses]);
-
-  useEffect(() => {
-    if (pollDetails.length > 0)
-      setSelectedPollDetailsId(pollDetails[0].response_id);
-    if (pollDetails.length === 0) setSelectedPollDetailsId(null);
-  }, [pollDetails]);
-
-  useEffect(() => {
-    if (filterValues) {
-      getPayers(payersPage, limit, filterValues);
-    }
-  }, [payersPage]);
-
-  useEffect(() => {
-    if (!selectedPayerId || !filterValues?.payers) return;
-
-    setTransSummaryPage(1);
-    setTransDetailsPage(1);
-
-    getTransSummaries(transSummaryPage, limit, selectedPayerId, filterValues);
-  }, [selectedPayerId, payers]);
-
-  useEffect(() => {
-    if (!filterValues) return;
-    getTransSummaries(transSummaryPage, limit, selectedPayerId, filterValues);
-  }, [transSummaryPage]);
-
-  useEffect(() => {
-    if (!filterValues) return;
-
-    if (
-      filterValues.status &&
-      filterValues.payers &&
-      selectedPayerId &&
-      selectedTransSummaryId
-    ) {
-      getTransDetails(
-        transDetailsPage,
-        limit,
-        selectedPayerId,
-        selectedTransSummaryId,
-        filterValues,
-      );
-    } else if (
-      filterValues.status &&
-      selectedTransSummaryId &&
-      !filterValues.payers
-    ) {
-      getTransDetails(
-        transDetailsPage,
-        limit,
-        undefined,
-        selectedTransSummaryId,
-        filterValues,
-      );
-    } else if (!filterValues.payers && !filterValues.status) {
-      getTransDetails(
-        transDetailsPage,
-        limit,
-        undefined,
-        undefined,
-        filterValues,
-      );
-    }
-  }, [selectedTransSummaryId, transDetailsPage, selectedPayerId]);
-
-
-  */
-  useEffect(() => {
-    getTransErrors(selectedTransDetailsId || -1, transErrorsPage, limit);
-  }, [transErrorsPage]);
-
-  useEffect(() => {
-    getTransResponses(selectedTransDetailsId || -1, transResponsesPage, limit);
-  }, [transResponsesPage]);
-
-  useEffect(() => {
-    getPollDetails(selectedTransDetailsId || -1, pollDetailsPage, limit);
-  }, [pollDetailsPage]);
-
-  // useEffect(() => {
-  //   switch (selectedTab) {
-  //     case "errors":
-  //       getTransErrors(selectedTransDetailsId || -1, transErrorsPage, limit);
-  //       break;
-  //     case "response":
-  //       getTransResponses(
-  //         selectedTransDetailsId || -1,
-  //         transResponsesPage,
-  //         limit,
-  //       );
-  //       break;
-  //     case "pollDetails":
-  //       getPollDetails(selectedTransDetailsId || -1, pollDetailsPage, limit);
-  //       break;
-  //     default:
-  //       break;
-  //   }
-  // }, [selectedTransDetailsId, selectedTab]);
-
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const refetchRefPayer = useRef<() => void | null>(null);
   const refetchRefSummary = useRef<() => void | null>(null);
+  const refetchRefTransErrors = useRef<() => void | null>(null);
+  const refetchRefPollDetails = useRef<() => void | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleButtonClick = () => {
@@ -790,35 +322,8 @@ export default function TransMonitor() {
       await normalAxiosWithOutContentType.post("/nphies/poll/upload", formData);
 
       toast.success(`Success`);
-
-      await getTransErrors(
-        selectedTransDetailsId || -1,
-        transErrorsPage,
-        limit,
-      );
-
-      await getPollDetails(
-        selectedTransDetailsId || -1,
-        pollDetailsPage,
-        limit,
-      );
-
-      await getTransSummaries(
-        transSummaryPage,
-        limit,
-        selectedPayerId,
-        filterValues!,
-      );
-
-      await getTransDetails(
-        transDetailsPage,
-        limit,
-        selectedPayerId,
-        selectedTransSummaryId,
-        filterValues!,
-      );
     } catch (error: any) {
-      console.error("❌ Upload failed:", error?.response?.data?.msg);
+      console.error("Upload failed:", error?.response?.data?.msg);
       toast.error("Error " + error?.response?.data?.msg, {
         autoClose: false,
       });
@@ -827,6 +332,18 @@ export default function TransMonitor() {
       event.target.value = "";
     }
   };
+
+  const payersParams = useMemo(() => {
+    return getPayersParams(filterValues);
+  }, [filterValues]);
+
+  const summaryParams = useMemo(() => {
+    return getTransSummaryParams(selectedPayerId, filterValues);
+  }, [selectedPayerId, filterValues]);
+
+  const detailsParams = useMemo(() => {
+    return getTransDetailsParams(selectedPayerId, selectedTransSummary, filterValues);
+  }, [selectedPayerId, selectedTransSummary, filterValues]);
 
   return (
     <>
@@ -857,16 +374,16 @@ export default function TransMonitor() {
         }}
       >
         {(isLoading || loading) && <GlobalLoader />}
-        {/* remove title --- rebuild */}
-        {/* <Typography variant="h5">TransMonitors</Typography> */}
+
         <input
           type="file"
           ref={fileInputRef}
           style={{ display: "none" }}
           onChange={handleFileChange}
         />
+        
         <FilterForm
-          setFilterValues={handleFilterSubmit}
+          setFilterValues={setFilterValues}
           refetchRefPayer={refetchRefPayer}
           refetchRefSummary={refetchRefSummary}
         />
@@ -884,29 +401,16 @@ export default function TransMonitor() {
             <Secure.GLCustomTable2
               permission={`${PERMISSIONS_PREFIXES.transMonitor}payers`}
               fetcher={fetcher}
-              url={filterValues ? "/transMonitor/payers" : ""}
-              params={getPayersParams(filterValues)}
+              url="/transMonitor/payers"
+              page={payerPage}
+              onPageChangeExternal={setPayerPage}
+              params={payersParams}
               getRowId={(row: any) => row.payer_id}
-              loading={transMonitorContextData.isLoading.getPayersReq}
               limit={limit}
-              page={payersTablePage}
-              onPageChangeExternal={setPayersTablePage}
               smallSize
               refetchRef={refetchRefPayer}
-              // onRowSelectionModelChange={(
-              //   selectionModel: GridRowSelectionModel,
-              // ) => {
-              //   const selected = selectionModel[0];
-              //   if (selected != null) setSelectedPayerId(selected as any);
-              // }}
-              // onCellKeyDown={handleGridKeyNav(
-              //   payers,
-              //   (row) => row.payer_id,
-              //   payersApiRef,
-              //   setSelectedPayerId,
-              // )}
               onRowSelected={(row: Payers | null) =>
-                setSelectedPayerId(row?.payer_id ?? null)
+                setSelectedPayerId(row?.payer_id ? row?.payer_id : null)
               }
               sx={{ maxHeight: "35vh" }}
               columns={
@@ -951,96 +455,19 @@ export default function TransMonitor() {
                 ] as GLGridColDef[]
               }
             />
-            {/* <DataGrid
-              apiRef={payersApiRef}
-              rows={payers}
-              columns={
-                [
-                  { field: "payer_id", headerName: "Payer Id" },
-                  { field: "payer_name", headerName: "Payer Name", flex: 2 },
-                  {
-                    field: "cnt",
-                    headerName: "CNT",
-                    renderCell: (p) => (
-                      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                        {p.value}
-                      </Box>
-                    ),
-                  },
-                  {
-                    field: "response_ms",
-                    headerName: "Response MS",
-                    renderCell: (p) => (
-                      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                        {p.value}
-                      </Box>
-                    ),
-                  },
-                ] as GridColDef[]
-              }
-              getRowId={(row: any) => row.payer_id}
-              rowCount={payersTotalRows}
-              loading={transMonitorContextData.isLoading.getPayersReq}
-              paginationMode="server"
-              paginationModel={{ page: payersCurrentPage - 1, pageSize: limit }}
-              onPaginationModelChange={(model) => setPayersPage(model.page + 1)}
-              pageSizeOptions={[limit]}
-              slots={{
-                pagination: () => <CustomPagination rightSide={false} />,
-              }}
-              rowSelection={Boolean(filterValues?.payers)}
-              rowSelectionModel={
-                selectedPayerId != null ? [selectedPayerId] : []
-              }
-              onRowSelectionModelChange={(
-                selectionModel: GridRowSelectionModel,
-              ) => {
-                const selected = selectionModel[0];
-                if (selected != null) setSelectedPayerId(selected as any);
-              }}
-              onCellKeyDown={handleGridKeyNav(
-                payers,
-                (row) => row.payer_id,
-                payersApiRef,
-                setSelectedPayerId,
-              )}
-              sx={{ maxHeight: "35vh" }}
-              hideFooterSelectedRowCount
-              className="exact-25px-rows"
-            /> */}
           </Box>
           <Box sx={{ width: "65%" }}>
             <Secure.GLCustomTable2
-              key={`summary-${filterValues?.payers === false ? 'all' : (selectedPayerId ?? 'none')}`}
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transSummary`}
               fetcher={fetcher}
-              url={
-                filterValues &&
-                (filterValues.payers === false || selectedPayerId != null)
-                  ? "/transMonitor/trans_summaries"
-                  : ""
-              }
-              params={getTransSummaryParams(selectedPayerId, filterValues)}
-              getRowId={(row: TransSummary) =>
-                `${row.api_function}-${row.api_name}-${row.status}`
-              }
-              loading={transMonitorContextData.isLoading.getTransSummriesReq}
-              page={transSummaryTablePage}
-              onPageChangeExternal={handleTransSummaryPageChange}
+              page={summaryPage}
               refetchRef={refetchRefSummary}
-              // onRowSelectionModelChange={(
-              //   selectionModel: GridRowSelectionModel,
-              // ) => {
-              //   const selected = selectionModel[0];
-              //   if (selected != null)
-              //     setSelectedTransSummaryId(selected as any);
-              // }}
-              // onCellKeyDown={handleGridKeyNav(
-              //   transSummaries,
-              //   getSummaryRowId,
-              //   transSummaryApiRef,
-              //   setSelectedTransSummaryId,
-              // )}
+              onPageChangeExternal={setSummaryPage}
+              url="/transMonitor/trans_summaries"
+              params={summaryParams}
+              getRowId={(row: TransSummary) =>
+                `${row?.api_function}-${row?.api_name}-${row?.status}`
+              }
               sx={{ maxHeight: "35vh" }}
               smallSize
               limit={limit}
@@ -1122,87 +549,6 @@ export default function TransMonitor() {
                 setSelectedTransSummaryId(row ? getSummaryRowId(row) : null);
               }}
             />
-            {/* <DataGrid
-              apiRef={transSummaryApiRef}
-              rows={transSummaries}
-              columns={
-                [
-                  { field: "api_name", headerName: "API Name" },
-                  {
-                    field: "api_function",
-                    headerName: "API Function",
-                    flex: 2,
-                  },
-                  { field: "status", headerName: "Status" },
-                  {
-                    field: "trans_count",
-                    headerName: "Trans Count",
-                    renderCell: (p) => (
-                      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                        {p.value}
-                      </Box>
-                    ),
-                    display: "flex",
-                    align: "right",
-                  },
-                  {
-                    field: "earliest_trans",
-                    headerName: "Earliest Trans",
-                    flex: 2,
-                  },
-                  {
-                    field: "latest_trans",
-                    headerName: "Latest Trans",
-                    flex: 2,
-                  },
-                  {
-                    field: "response_ms",
-                    renderCell: (p) => (
-                      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                        {p.value}
-                      </Box>
-                    ),
-                    headerName: "Response MS",
-                  },
-                ] as GridColDef[]
-              }
-              getRowId={(row: TransSummary) =>
-                `${row.api_function}-${row.api_name}-${row.status}`
-              }
-              rowCount={transSummaryTotalRows}
-              loading={transMonitorContextData.isLoading.getTransSummriesReq}
-              paginationMode="server"
-              paginationModel={{
-                page: transSummaryCurrentPage - 1,
-                pageSize: limit,
-              }}
-              onPaginationModelChange={(model) =>
-                setTransSummaryPage(model.page + 1)
-              }
-              pageSizeOptions={[limit]}
-              slots={{
-                pagination: () => <CustomPagination rightSide={false} />,
-              }}
-              rowSelection={Boolean(filterValues?.status)}
-              rowSelectionModel={
-                selectedTransSummaryId != null ? [selectedTransSummaryId] : []
-              }
-              onRowSelectionModelChange={(
-                selectionModel: GridRowSelectionModel,
-              ) => {
-                const selected = selectionModel[0];
-                if (selected != null)
-                  setSelectedTransSummaryId(selected as any);
-              }}
-              onCellKeyDown={handleGridKeyNav(
-                transSummaries,
-                getSummaryRowId,
-                transSummaryApiRef,
-                setSelectedTransSummaryId,
-              )}
-              sx={{ maxHeight: "35vh" }}
-              hideFooterSelectedRowCount
-            /> */}
           </Box>
         </Box>
 
@@ -1213,29 +559,16 @@ export default function TransMonitor() {
             gap: 1,
           }}
         >
-          {/* {selectedTransDetailsId} */}
           <Secure.GLCustomTable2
-            key={`details-${filterValues?.payers === false ? 'all' : (selectedPayerId ?? 'none')}-${filterValues?.status === false ? 'all' : (selectedTransSummaryId ?? 'none')}`}
             permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetails`}
             fetcher={fetcher}
-            url={
-              filterValues &&
-              (filterValues.payers === false || selectedPayerId != null) &&
-              (filterValues.status === false || selectedTransSummary != null)
-                ? "/transMonitor/trans_details"
-                : ""
-            }
-            params={getTransDetailsParams(
-              selectedPayerId,
-              selectedTransSummary,
-              filterValues,
-            )}
+            page={detailsPage}
+            onPageChangeExternal={setDetailsPage}
+            url="/transMonitor/trans_details"
+            params={detailsParams}
             smallSize
             getRowId={(row: any) => row.api_trans_id}
-            loading={transMonitorContextData.isLoading.getTransDetailsReq}
             limit={limit}
-            page={transDetailsTablePage}
-            onPageChangeExternal={setTransDetailsTablePage}
             initialHiddenColumns={[
               "bundle_id",
               "response_time_ms",
@@ -1268,7 +601,6 @@ export default function TransMonitor() {
                           alignItems: "center",
                         }}
                       >
-                        {/* <span>{params.row.api_function}</span> */}
                         <span>{params.row.api_trans_id}</span>
                         <DownloadTransData
                           permission={`${PERMISSIONS_PREFIXES.transMonitor}downloadTransData`}
@@ -1313,10 +645,6 @@ export default function TransMonitor() {
                   permission: `${PERMISSIONS_PREFIXES.transMonitor}bundleId`,
                   flex: 1,
                 },
-                //              response_time_ms,
-                // elapsed_time_ms,
-                // preprocess_time_ms,
-                // local_api_time_ms,
                 {
                   field: "response_time_ms",
                   headerName: "Response ms",
@@ -1324,7 +652,6 @@ export default function TransMonitor() {
                   display: "flex",
                   type: "number",
                 },
-
                 {
                   field: "elapsed_time_ms",
                   headerName: "Elapsed ms",
@@ -1346,7 +673,6 @@ export default function TransMonitor() {
                   type: "number",
                   display: "flex",
                 },
-
                 {
                   field: "status",
                   headerName: "Status",
@@ -1386,7 +712,6 @@ export default function TransMonitor() {
                   headerName: "Transaction Id",
                   permission: `${PERMISSIONS_PREFIXES.transMonitor}transactionId`,
                 },
-
                 {
                   field: "payer_id",
                   align: "right",
@@ -1516,225 +841,11 @@ export default function TransMonitor() {
               ] as GLGridColDef[]
             }
             sx={{ maxHeight: "35vh" }}
-            onRowSelected={(row: TransDetails | null) =>
-              setSelectedTransDetailsId(row?.api_trans_id ?? null)
-            }
+            onRowSelected={(row: TransDetails | null) => {
+              setSelectedTransDetailsId(row?.api_trans_id ?? null);
+              setSelectedTransDetail(row);
+            }}
           />
-          {/* <DataGrid
-            apiRef={transDetailsApiRef}
-            rows={transDetails}
-            columns={
-              [
-                {
-                  field: "api_trans_id",
-                  display: "flex",
-                  headerName: "API Trans ID",
-                  renderCell: (params: any) => {
-                    return (
-                      <Box
-                        className={
-                          params.row.api_function?.toUpperCase() == "CANCEL"
-                            ? " status_C"
-                            : ""
-                        }
-                        sx={{
-                          display: "flex",
-                          justifyContent: "center",
-                          gap: 1,
-                          alignItems: "center",
-                        }}
-                      >
-                        {/* <span>{params.row.api_function}</span> 
-                        <span>{params.row.api_trans_id}</span>
-                        <DownloadTransData
-                          permission={`${PERMISSIONS_PREFIXES.transMonitor}downloadTransData`}
-                          fallBackText="Download"
-                          transId={params.row.api_trans_id}
-                          apiClient={normalAxios}
-                        />
-                      </Box>
-                    );
-                  },
-                },
-                { field: "api_name", display: "flex", headerName: "API Name" },
-                {
-                  field: "api_function",
-                  display: "flex",
-                  headerName: "API Function",
-                  flex: 1,
-                },
-                {
-                  field: "creation_date",
-                  display: "flex",
-                  headerName: "Creation Date",
-                  width: 130,
-                },
-                {
-                  field: "bundle_id",
-
-                  display: "flex",
-                  headerName: "Bundle Id",
-                  flex: 1,
-                },
-                //              response_time_ms,
-                // elapsed_time_ms,
-                // preprocess_time_ms,
-                // local_api_time_ms,
-                {
-                  field: "response_time_ms",
-                  headerName: "Response ms",
-                  display: "flex",
-                  type: "number",
-                },
-
-                {
-                  field: "elapsed_time_ms",
-                  headerName: "Elapsed ms",
-                  display: "flex",
-                  type: "number",
-                },
-                {
-                  field: "preprocess_time_ms",
-                  headerName: "Preprocess ms",
-                  display: "flex",
-                  type: "number",
-                },
-                {
-                  field: "local_api_time_ms",
-                  headerName: "Local API ms",
-                  type: "number",
-                  display: "flex",
-                },
-
-                { field: "status", headerName: "Status", display: "flex" },
-                { field: "outcome", headerName: "Outcome", display: "flex" },
-                {
-                  field: "adjudication_outcome",
-                  headerName: "Adjudication",
-                  display: "flex",
-                },
-                { field: "patient_id", headerName: "Patient Id" },
-                { field: "episode_no", headerName: "Episode" },
-                { field: "transaction_id", headerName: "Transaction Id" },
-
-                { field: "payer_id", headerName: "Payer" },
-                {
-                  field: "bundle_count",
-
-                  headerName: "Bundles",
-                  renderCell: (p) => {
-                    return (
-                      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                        {p.value}
-                      </Box>
-                    );
-                  },
-                },
-                {
-                  field: "res_kb",
-                  display: "flex",
-                  headerName: "Res KB",
-                  renderCell: (p) => {
-                    return (
-                      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                        {p.value}
-                      </Box>
-                    );
-                  },
-                },
-                {
-                  field: "dest_url",
-                  headerName: "Dest URL",
-                  flex: 1,
-                  renderCell: (params: any) => (
-                    <Tooltip
-                      title={params.value || ""}
-                      placement="top"
-                      arrow
-                      disableHoverListener={!params.value}
-                    >
-                      <Box
-                        sx={{
-                          width: "100%",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {params.value}
-                      </Box>
-                    </Tooltip>
-                  ),
-                },
-                {
-                  field: "cancel_api_trans_id",
-                  headerName: "Cancel Trans ID",
-                  flex: 1,
-                },
-                {
-                  field: "error_message",
-                  headerName: "Error Message",
-                  flex: 2,
-                  renderCell: (params: any) => (
-                    <Tooltip
-                      title={params.value || ""}
-                      placement="top"
-                      arrow
-                      disableHoverListener={!params.value}
-                    >
-                      <Box
-                        sx={{
-                          width: "100%",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {params.value}
-                      </Box>
-                    </Tooltip>
-                  ),
-                },
-              ] as GridColDef[]
-            }
-            getRowId={(row: any) => row.api_trans_id}
-            rowCount={transDetailsTotalRows}
-            loading={transMonitorContextData.isLoading.getTransDetailsReq}
-            paginationMode="server"
-            paginationModel={{
-              page: transDetailsCurrentPage - 1,
-              pageSize: limit,
-            }}
-            onPaginationModelChange={(model) =>
-              setTransDetailsPage(model.page + 1)
-            }
-            pageSizeOptions={[limit]}
-            slots={{ pagination: () => <CustomPagination rightSide={false} /> }}
-            rowSelectionModel={
-              selectedTransDetailsId != null ? [selectedTransDetailsId] : []
-            }
-            onRowSelectionModelChange={(
-              selectionModel: GridRowSelectionModel,
-            ) => {
-              const selected = selectionModel[0];
-              if (selected != null) {
-                setSelectedTransDetailsId(selected as any);
-              }
-            }}
-            onCellKeyDown={handleGridKeyNav(
-              transDetails,
-              (row) => row.api_trans_id,
-              transDetailsApiRef,
-              setSelectedTransDetailsId,
-            )}
-            columnVisibilityModel={transDetailsColumnVisibilityModel}
-            onColumnVisibilityModelChange={(newModel) =>
-              setTransDetailsColumnVisibilityModel(newModel)
-            }
-            sx={{ maxHeight: "35vh" }}
-            hideFooterSelectedRowCount
-            className="exact-25px-rows"
-          /> */}
 
           <DisplayMsgDialog
             description={description}
@@ -1747,7 +858,7 @@ export default function TransMonitor() {
             sx={{
               display: "flex",
               flexDirection: "row",
-              jsutifyContent: "flex-start",
+              justifyContent: "flex-start",
               gap: 1,
             }}
           >
@@ -1797,19 +908,8 @@ export default function TransMonitor() {
                   })
                   .then(async (res) => {
                     toast.success(`Success`);
-
-                    await getTransErrors(
-                      selectedTransDetailsId,
-                      transErrorsPage,
-                      limit,
-                    );
-                    await getPollDetails(
-                      selectedTransDetailsId,
-                      pollDetailsPage,
-                      limit,
-                    );
-
-                    console.log(res.data);
+                    refetchRefTransErrors?.current?.();
+                    refetchRefPollDetails?.current?.();
                   })
                   .catch((err) => {
                     if (isAxiosError(err)) {
@@ -1838,16 +938,8 @@ export default function TransMonitor() {
                   })
                   .then(async () => {
                     toast.success(`Success`);
-                    await getTransErrors(
-                      selectedTransDetailsId,
-                      transErrorsPage,
-                      limit,
-                    );
-                    await getPollDetails(
-                      selectedTransDetailsId,
-                      pollDetailsPage,
-                      limit,
-                    );
+                    refetchRefTransErrors?.current?.();
+                    refetchRefPollDetails?.current?.();
                   })
                   .catch((err) => {
                     if (isAxiosError(err)) {
@@ -1898,8 +990,6 @@ export default function TransMonitor() {
               <MenuItem
                 disabled={!selectedPollDetailsId}
                 onClick={() => {
-                  console.log("hiii", selectedPollDetailsId);
-
                   if (selectedPollDetailsId) {
                     handleSendAdvancedAuth(selectedPollDetailsId);
                   }
@@ -1963,12 +1053,13 @@ export default function TransMonitor() {
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetailsErrorsTab`}
             >
               <Secure.GLCustomTable2
-                key={`errors-${selectedTransDetailsId ?? 'none'}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transErrorsTable`}
                 fetcher={fetcher}
-                url={selectedTransDetailsId ? "/transMonitor/trans_errors" : ""}
+                url={`/transMonitor/trans_errors`}
                 params={{ trans_id: selectedTransDetailsId }}
-                loading={transMonitorContextData.isLoading.getTransErrorsReq}
+                page={errorsPage}
+                onPageChangeExternal={setErrorsPage}
+                refetchRef={refetchRefTransErrors}
                 smallSize
                 columns={
                   [
@@ -2057,12 +1148,12 @@ export default function TransMonitor() {
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetailsResponseTab`}
             >
               <Secure.GLCustomTable2
-                key={`responses-${selectedTransDetailsId ?? 'none'}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transResponses`}
                 fetcher={fetcher}
-                url={selectedTransDetailsId ? "/transMonitor/trans_responses" : ""}
+                url={`/transMonitor/trans_responses`}
+                page={responsePage}
+                onPageChangeExternal={setResponsePage}
                 params={{ trans_id: selectedTransDetailsId }}
-                loading={transMonitorContextData.isLoading.getTransResponsesReq}
                 smallSize
                 getRowId={(row: TransResponse) => row.response_seq}
                 onRowSelected={(row) =>
@@ -2152,17 +1243,8 @@ export default function TransMonitor() {
                                       }`,
                                     );
 
-                                    await getTransErrors(
-                                      selectedTransDetailsId || "",
-                                      transErrorsPage,
-                                      limit,
-                                    );
-
-                                    await getPollDetails(
-                                      selectedTransDetailsId || -1,
-                                      pollDetailsPage,
-                                      limit,
-                                    );
+                                    refetchRefTransErrors?.current?.();
+                                    refetchRefPollDetails?.current?.();
                                   })
                                   .catch((err) => {
                                     console.log(err);
@@ -2193,12 +1275,13 @@ export default function TransMonitor() {
               permission={`${PERMISSIONS_PREFIXES.transMonitor}transDetailsPollDetailsTab`}
             >
               <Secure.GLCustomTable2
-                key={`poll-${selectedTransDetailsId ?? 'none'}`}
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}pollDetails`}
+                refetchRef={refetchRefPollDetails}
                 fetcher={fetcher}
-                url={selectedTransDetailsId ? "/transMonitor/poll_details" : ""}
+                url={`/transMonitor/poll_details`}
                 params={{ trans_id: selectedTransDetailsId }}
-                loading={transMonitorContextData.isLoading.getPollDetailsReq}
+                page={pollDetailsPage}
+                onPageChangeExternal={setPollDetailsPage}
                 smallSize
                 getRowId={(row: PollDetails) => row.response_id}
                 onRowSelected={(row) =>
@@ -2228,14 +1311,12 @@ export default function TransMonitor() {
                       headerName: "Response Id",
                       permission: `${PERMISSIONS_PREFIXES.transMonitor}responseId`,
                     },
-
                     {
                       flex: 1,
                       field: "status",
                       headerName: "Status",
                       permission: `${PERMISSIONS_PREFIXES.transMonitor}status`,
                     },
-
                     {
                       flex: 1,
                       field: "about_api_trans_id",
@@ -2303,17 +1384,8 @@ export default function TransMonitor() {
                                       }`,
                                     );
 
-                                    await getTransErrors(
-                                      selectedTransDetailsId || "",
-                                      transErrorsPage,
-                                      limit,
-                                    );
-
-                                    await getPollDetails(
-                                      selectedTransDetailsId || -1,
-                                      pollDetailsPage,
-                                      limit,
-                                    );
+                                    refetchRefTransErrors?.current?.();
+                                    refetchRefPollDetails?.current?.();
                                   })
                                   .catch((err) => {
                                     console.log(err);
@@ -2345,399 +1417,6 @@ export default function TransMonitor() {
               <FileViewer transDetailsId={selectedTransDetailsId || ""} />
             </Secure.GLLab.TabPanel>
           </Secure.GLLab.TabContext>
-
-          {/* <TabContext value={selectedTab}> */}
-          {/* <TabList
-              onChange={(_, value) => setSelectedTab(value)}
-              aria-label=""
-            >
-              <Tab label="Errors" value="errors" />
-              <Tab label="Response" value="response" />
-              <Tab label="Poll Details" value="pollDetails" />
-            </TabList> */}
-
-          {/* <TabPanel value="errors" sx={{ p: 1 }}> */}
-          {/* <DataGrid
-                apiRef={transErrorsApiRef}
-                rows={transErrors}
-                columns={
-                  [
-                    { field: "message_id", headerName: "Message Id" },
-                    {
-                      field: "api_trans_id",
-                      headerName: "Trans Id",
-                      renderCell: (params: any) => {
-                        return (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: 1,
-                              alignItems: "flex-start",
-                            }}
-                          >
-                            <span>{params.row.api_trans_id}</span>
-                            <DownloadTransData
-                              transId={params.row.api_trans_id}
-                              permission={`${PERMISSIONS_PREFIXES.transMonitor}downloadTransData`}
-                              fallBackText="Download"
-                              apiClient={normalAxios}
-                            />
-                          </Box>
-                        );
-                      },
-                    },
-                    {
-                      field: "nphies_message_id",
-                      headerName: "Nphies Message ID",
-                    },
-                    {
-                      field: "nphies_message",
-                      headerName: "Nphies Message",
-                      flex: 5,
-                    },
-                    {
-                      field: "error_element",
-                      headerName: "Error Element",
-                      flex: 3,
-                    },
-                    { field: "element_value", headerName: "Element Value" },
-                    { field: "item_no", headerName: "Item No" },
-                    { field: "response_id", headerName: "ResponseId" },
-                  ] as GridColDef[]
-                }
-                getRowId={(row: TransError) => row.message_id}
-                rowCount={transErrorsTotalRows}
-                loading={transMonitorContextData.isLoading.getTransErrorsReq}
-                paginationMode="server"
-                paginationModel={{
-                  page: transErrorsCurrentPage - 1,
-                  pageSize: customLimit,
-                }}
-                onPaginationModelChange={(model) =>
-                  setTransErrorsPage(model.page + 1)
-                }
-                pageSizeOptions={[customLimit]}
-                slots={{
-                  pagination: () => <CustomPagination rightSide={false} />,
-                }}
-                rowSelectionModel={
-                  selectedTransErrorId != null ? [selectedTransErrorId] : []
-                }
-                onRowSelectionModelChange={(
-                  selectionModel: GridRowSelectionModel,
-                ) => {
-                  const selected = selectionModel[0];
-                  if (selected != null)
-                    setSelectedTransErrorId(selected as any);
-                }}
-                onCellKeyDown={handleGridKeyNav(
-                  transErrors,
-                  (row) => row.message_id,
-                  transErrorsApiRef,
-                  setSelectedTransErrorId,
-                )}
-                sx={{ maxHeight: "35vh", flex: 1 }}
-                hideFooterSelectedRowCount
-              /> */}
-          {/* </TabPanel> */}
-
-          {/* <TabPanel value="response" sx={{ p: 1 }}> */}
-          {/* <DataGrid
-                apiRef={transResponsesApiRef}
-                rows={transResponses}
-                columns={
-                  [
-                    {
-                      flex: 1,
-                      field: "api_trans_id",
-                      headerName: "Poll Trans ID",
-                    },
-                    {
-                      flex: 1,
-                      field: "response_seq",
-                      headerName: "Response Seq",
-                    },
-                    {
-                      flex: 1,
-                      field: "response_type",
-                      headerName: "Response Type",
-                    },
-                    { flex: 1, field: "status", headerName: "Status" },
-                    {
-                      flex: 1,
-                      field: "creation_date",
-                      headerName: "Created at",
-                    },
-                    {
-                      flex: 1,
-                      field: "error_message",
-                      headerName: "Error Message",
-                    },
-                    {
-                      field: " ",
-                      headerName: "Response Bundle",
-                      renderCell: (params: any) => {
-                        return (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "center",
-                              gap: 1,
-                              alignItems: "flex-start",
-                            }}
-                          >
-                            <DownloadTransData
-                              directData={params.row.response_bundle}
-                              directFileType={{
-                                name: `${params.row.about_api_trans_id}_${params.row.response_type}_poll_${params.row.api_trans_id}_${params.row.response_id}`,
-                                type: "application/json",
-                              }}
-                              permission={`${PERMISSIONS_PREFIXES.transMonitor}downloadTransData`}
-                              fallBackText="Download"
-                            ></DownloadTransData>
-
-                            <ReplayIcon
-                              fontSize="small"
-                              onClick={() => {
-                                if (!params.row.response_id) return;
-                                setIsLoading(true);
-                                normalAxios
-                                  .post(`/nphies/processSingleBundle`, {
-                                    response_id: params.row.response_id,
-                                  })
-                                  .then(async (res) => {
-                                    console.log(res.data, "respinnnnnnse");
-                                    toast.success(
-                                      `Success ${
-                                        res.data.req_id
-                                          ? `(ServiceRequest ID ${res.data.req_id} )`
-                                          : ""
-                                      }`,
-                                    );
-
-                                    await getTransErrors(
-                                      selectedTransDetailsId || "",
-                                      transErrorsPage,
-                                      limit,
-                                    );
-
-                                    await getPollDetails(
-                                      selectedTransDetailsId || -1,
-                                      pollDetailsPage,
-                                      limit,
-                                    );
-                                  })
-                                  .catch((err) => {
-                                    console.log(err);
-                                    if (isAxiosError(err)) {
-                                      toast.error(
-                                        err?.response?.data.error ||
-                                          "something want wrong",
-                                      );
-                                    }
-                                  })
-                                  .finally(() => {
-                                    setIsLoading(false);
-                                  });
-                              }}
-                            />
-                          </Box>
-                        );
-                      },
-                    },
-                  ] as GridColDef[]
-                }
-                getRowId={(row: TransResponse) => row.response_seq}
-                rowCount={transResponsesTotalRows}
-                loading={transMonitorContextData.isLoading.getTransResponsesReq}
-                paginationMode="server"
-                paginationModel={{
-                  page: transResponsesCurrentPage - 1,
-                  pageSize: customLimit,
-                }}
-                onPaginationModelChange={(model) =>
-                  setTransResponsesPage(model.page + 1)
-                }
-                pageSizeOptions={[customLimit]}
-                slots={{
-                  pagination: () => <CustomPagination rightSide={false} />,
-                }}
-                rowSelectionModel={
-                  selectedTransResponseId != null
-                    ? [selectedTransResponseId]
-                    : []
-                }
-                onRowSelectionModelChange={(
-                  selectionModel: GridRowSelectionModel,
-                ) => {
-                  const selected = selectionModel[0];
-                  if (selected != null)
-                    setSelectedTransResponseId(selected as any);
-                }}
-                onCellKeyDown={handleGridKeyNav(
-                  transResponses,
-                  (row) => row.response_seq,
-                  transResponsesApiRef,
-                  setSelectedTransResponseId,
-                )}
-                sx={{ maxHeight: "35vh", flex: 1 }}
-                hideFooterSelectedRowCount
-              /> */}
-          {/* </TabPanel> */}
-
-          {/* <TabPanel value="pollDetails" sx={{ p: 1 }}> */}
-          {/* <DataGrid
-                apiRef={pollDetailsApiRef}
-                rows={pollDetails}
-                columns={
-                  [
-                    {
-                      flex: 1,
-                      field: "response_seq",
-                      headerName: "Response Seq",
-                    },
-                    {
-                      flex: 1,
-                      field: "response_type",
-                      headerName: "Response Type",
-                    },
-                    {
-                      flex: 1,
-                      field: "response_id",
-                      headerName: "Response id",
-                    },
-
-                    { flex: 1, field: "status", headerName: "Status" },
-
-                    {
-                      flex: 1,
-                      field: "about_api_trans_id",
-                      headerName: "About",
-                    },
-                    {
-                      flex: 1,
-                      field: "adjudication_outcome",
-                      headerName: "Outcome",
-                    },
-                    {
-                      flex: 1,
-                      field: "creation_date",
-                      headerName: "Created at",
-                    },
-                    {
-                      flex: 1,
-                      field: "error_message",
-                      headerName: "Error Message",
-                    },
-                    {
-                      field: " ",
-                      headerName: "Actions",
-                      renderCell: (params: any) => {
-                        return (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "center",
-                              gap: 1,
-                              alignItems: "flex-start",
-                            }}
-                          >
-                            <DownloadTransData
-                              directData={params.row.response_bundle}
-                              directFileType={{
-                                name: `${params.row.about_api_trans_id || ""}_${params.row.response_type}_poll_${params.row.api_trans_id}_${params.row.response_id}`,
-                                type: "application/json",
-                              }}
-                              permission={`${PERMISSIONS_PREFIXES.transMonitor}downloadTransData`}
-                              fallBackText="Download"
-                            />
-                            <ReplayIcon
-                              onClick={() => {
-                                if (!params.row.response_id) return;
-                                setIsLoading(true);
-                                normalAxios
-                                  .post(`/nphies/processSingleBundle`, {
-                                    response_id: params.row.response_id,
-                                  })
-                                  .then(async (res) => {
-                                    console.log(res.data, "respinnnnnnse");
-                                    toast.success(
-                                      `Success ${
-                                        res.data.req_id
-                                          ? `(ServiceRequest ID ${res.data.req_id} )`
-                                          : ""
-                                      }`,
-                                    );
-
-                                    await getTransErrors(
-                                      selectedTransDetailsId || "",
-                                      transErrorsPage,
-                                      limit,
-                                    );
-
-                                    await getPollDetails(
-                                      selectedTransDetailsId || -1,
-                                      pollDetailsPage,
-                                      limit,
-                                    );
-                                  })
-                                  .catch((err) => {
-                                    console.log(err);
-                                    if (isAxiosError(err)) {
-                                      toast.error(
-                                        err?.response?.data.error ||
-                                          "something want wrong",
-                                      );
-                                    }
-                                  })
-                                  .finally(() => {
-                                    setIsLoading(false);
-                                  });
-                              }}
-                            />
-                          </Box>
-                        );
-                      },
-                    },
-                  ] as GridColDef[]
-                }
-                getRowId={(row: PollDetails) => row.response_id}
-                rowCount={pollDetailsTotalRows}
-                loading={transMonitorContextData.isLoading.getPollDetailsReq}
-                paginationMode="server"
-                paginationModel={{
-                  page: pollDetailsCurrentPage - 1,
-                  pageSize: customLimit,
-                }}
-                onPaginationModelChange={(model) =>
-                  setPollDetailsPage(model.page + 1)
-                }
-                pageSizeOptions={[customLimit]}
-                slots={{
-                  pagination: () => <CustomPagination rightSide={false} />,
-                }}
-                rowSelectionModel={
-                  selectedPollDetailsId != null ? [selectedPollDetailsId] : []
-                }
-                onRowSelectionModelChange={(
-                  selectionModel: GridRowSelectionModel,
-                ) => {
-                  const selected = selectionModel[0];
-                  if (selected != null)
-                    setSelectedPollDetailsId(selected as any);
-                }}
-                onCellKeyDown={handleGridKeyNav(
-                  pollDetails,
-                  (row) => row.response_id,
-                  pollDetailsApiRef,
-                  setSelectedPollDetailsId,
-                )}
-                sx={{ maxHeight: "35vh", flex: 1 }}
-                hideFooterSelectedRowCount
-              /> */}
-          {/* </TabPanel>
-          </TabContext> */}
         </Box>
 
         <DisplayMsgDialog
@@ -2756,6 +1435,7 @@ export default function TransMonitor() {
     </>
   );
 }
+
 interface Hl7ResendDialogProps {
   open: boolean;
   onClose: () => void;

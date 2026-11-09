@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
 import { dashboardAxios } from "../../../api";
 import {
   TextField,
@@ -50,8 +51,6 @@ interface FilterProps {
   setFilterValues: (values: Filters) => void;
   refetchRefPayer: React.MutableRefObject<(() => void) | null>;
   refetchRefSummary: React.MutableRefObject<(() => void) | null>;
-
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   sx?: {};
 }
 
@@ -80,8 +79,8 @@ const FilterForm = ({
 
   const formik = useFormik({
     initialValues: {
-      date_start: defaultRange.start,
-      date_end: defaultRange.end,
+      date_start: defaultRange.start as Dayjs | null,
+      date_end: defaultRange.end as Dayjs | null,
       payer_id: "",
       api_name: "",
       api_function: "",
@@ -129,66 +128,19 @@ const FilterForm = ({
       }
       setFilterValues(data);
       handleSubmit(effectiveValues);
-      refetchRefPayer?.current?.();
+
+      Promise.resolve(refetchRefPayer?.current?.())
+        .then(
+          () => {
+            refetchRefSummary?.current?.();
+          },
+          () => {
+            refetchRefSummary?.current?.();
+          },
+        );
     },
   });
 
-  useEffect(() => {
-    formik.submitForm();
-  }, []);
-
-  // useEffect(() => {
-  //   let active = true;
-  //   setLoadingPayers(true);
-
-  //   const format = (v: any) =>
-  //     v ? dayjs(v).format("YYYY-MM-DD HH:mm") : null;
-
-  //   normalAxios
-  //     .get("/transMonitor/options/filter", {
-  //       params: {
-  //         date_start: format(formik.values.date_start),
-  //         date_end: format(formik.values.date_end),
-  //         payer_id: formik.values.payer_id || null,
-  //         api_provider: formik.values.api_provider || null,
-  //         api_name: formik.values.api_name || null,
-  //         api_function: formik.values.api_function || null,
-  //         transaction_status: formik.values.transaction_status || null,
-  //       },
-  //     })
-  //     .then(({ data }) => {
-  //       if (!active) return;
-  //       const d = data?.data ?? {};
-  //       setPayerOptions(d.payers ?? []);
-  //       setApiProviderList(d.providers ?? []);
-  //       setApiNamesList(d.apiNames ?? []);
-  //       setApiFunctionsList(d.apiFunctions ?? []);
-  //       setTransactionStatusList(d.statuses ?? []);
-  //     })
-  //     .catch(() => {
-  //       if (!active) return;
-  //       setPayerOptions([]);
-  //       setApiProviderList([]);
-  //       setApiNamesList([]);
-  //       setApiFunctionsList([]);
-  //       setTransactionStatusList([]);
-  //     })
-  //     .finally(() => {
-  //       if (active) setLoadingPayers(false);
-  //     });
-
-  //   return () => {
-  //     active = false;
-  //   };
-  // }, [
-  //   formik.values.date_start,
-  //   formik.values.date_end,
-  //   formik.values.payer_id,
-  //   formik.values.api_provider,
-  //   formik.values.api_name,
-  //   formik.values.api_function,
-  //   formik.values.transaction_status,
-  // ]);
   const handleSubmit = async (values: typeof formik.values) => {
     fetchOptions(values);
   };
@@ -294,6 +246,7 @@ const FilterForm = ({
     }[]
   >([]);
   const [patientOptionsLoading, setPatientOptionsLoading] = useState(false);
+  
   const fetchPatients = useCallback(
     debounce(async (query) => {
       try {
@@ -309,6 +262,7 @@ const FilterForm = ({
     }, 400),
     [],
   );
+  
   useEffect(() => {
     fetchPatients("");
 
@@ -318,8 +272,24 @@ const FilterForm = ({
   }, []);
 
   const handleClear = () => {
-    formik.resetForm();
-    setQuickTimeRange(DEFAULT_QUICK_TIME_RANGE);
+    formik.resetForm({
+      values: {
+        date_start: null,
+        date_end: null,
+        payer_id: "",
+        api_name: "",
+        api_function: "",
+        api_provider: "",
+        transaction_status: "",
+        trans_id: "",
+        bundle_id: "",
+        status: true,
+        payers: true,
+        all_facilities: false,
+        patient: null,
+      },
+    });
+    setQuickTimeRange("");
     setFilterValues({
       date_start: "",
       date_end: "",
@@ -438,7 +408,7 @@ const FilterForm = ({
                   setQuickTimeRange("");
                   formik.setFieldValue("date_end", value);
                 }}
-                minDate={formik.values.date_start}
+                minDate={formik.values.date_start ?? undefined}
                 slotProps={{
                   field: {
                     clearable: true,

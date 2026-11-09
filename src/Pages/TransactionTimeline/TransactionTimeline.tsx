@@ -115,8 +115,8 @@ export default function TransactionTimeline({
   // Formik initialization
   const formik = useFormik({
     initialValues: {
-      date_start: defaultStart,
-      date_end: defaultEnd,
+      date_start: defaultStart as Dayjs | null,
+      date_end: defaultEnd as Dayjs | null,
       all_facilities: false,
       payer_id: null as string | null,
       api_name: null as string | null,
@@ -247,11 +247,22 @@ export default function TransactionTimeline({
   };
 
   const handleClear = () => {
-    formik.resetForm();
+    formik.resetForm({
+      values: {
+        date_start: null,
+        date_end: null,
+        all_facilities: false,
+        payer_id: null,
+        api_name: null,
+        api_provider: null,
+        api_function: null,
+        status: null,
+      },
+    });
     setQuickTimeRange("");
     setSubmittedParams({
-      date_start: toApiDateTimeOrNull(dayjs().subtract(30, "day")),
-      date_end: toApiDateTimeOrNull(dayjs()),
+      date_start: null,
+      date_end: null,
       payer_id: null,
       api_name: null,
       api_provider: null,
@@ -317,7 +328,7 @@ export default function TransactionTimeline({
               views={["year", "day", "hours", "minutes", "seconds"]}
               format={DISPLAY_DATE_TIME_FORMAT}
               value={formik.values.date_end}
-              minDate={formik.values.date_start}
+              minDate={formik.values.date_start ?? undefined}
               onChange={(value) => {
                 setQuickTimeRange("");
                 formik.setFieldValue("date_end", value);
