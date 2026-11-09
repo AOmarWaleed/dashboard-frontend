@@ -213,11 +213,11 @@ export function TransMonitorProvider({
   const getTransSummaryParams = useCallback(
     (selectedPayerId: any, filters: Filters | null) => {
       const filterParams = { ...(filters ?? ({} as Filters)) };
+      const groupByPayers = filterParams.payers !== false;
 
       delete filterParams.status;
       delete filterParams.payers;
 
-      const groupByPayers = filters?.payers !== false;
       const finalPayerId = groupByPayers ? selectedPayerId : filters?.payer_id;
 
       const params: any = {
@@ -249,21 +249,20 @@ export function TransMonitorProvider({
     ) => {
       const activeFilters = { ...(filters ?? ({} as Filters)) };
       const groupByPayers = activeFilters.payers !== false;
+      const groupByStatus = activeFilters.status !== false;
 
-      // Crucial: remove frontend checkbox flags
+      // Always remove frontend checkbox flags
       delete activeFilters.payers;
       delete activeFilters.status;
-
-      const finalPayerId = groupByPayers
-        ? selectedPayerId
-        : activeFilters.payer_id;
 
       const params: any = {
         ...activeFilters,
       };
 
-      if (finalPayerId != null && finalPayerId !== "") {
-        params.payer_id = finalPayerId;
+      // When groupByPayers is checked, filter by selected payer from table.
+      // When unchecked, transdetails is fetched without payer_id.
+      if (groupByPayers && selectedPayerId != null && selectedPayerId !== "") {
+        params.payer_id = selectedPayerId;
       } else {
         delete params.payer_id;
       }
@@ -281,7 +280,9 @@ export function TransMonitorProvider({
         } else {
           delete params.api_function;
         }
-        if (selectedSummary.status) {
+
+        // Only include status if groupByStatus is checked
+        if (groupByStatus && selectedSummary.status) {
           params.status = selectedSummary.status;
         } else {
           delete params.status;
