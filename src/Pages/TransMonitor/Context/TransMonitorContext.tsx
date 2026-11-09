@@ -73,11 +73,13 @@ export interface PollDetails {
   response_bundle: string;
 }
 
-interface SelectionState {
-  payerId?: string | number | null;
-  transSummaryId?: string | number | null;
-  transDetailsId?: string | number | null;
-  transErrorId?: string | number | null;
+export interface SelectionState {
+  payerId: string | number | null;
+  transSummary: TransSummary | null;
+  transSummaryId: string | number | null;
+  transDetailsId: string | number | null;
+  transDetail: TransDetails | null;
+  transErrorId: string | number | null;
 }
 
 interface TransMonitorContextValue {
@@ -85,11 +87,17 @@ interface TransMonitorContextValue {
     selectionObj: SelectionState;
   };
   updateSelectedPayerFn: (value: string | number | null) => void;
-  updateSelectedTransSummaryFn: (value: string | number | null) => void;
-  updateSelectedTransDetailsFn: (value: string | number | null) => void;
+  updateSelectedTransSummaryFn: (summary: TransSummary | null) => void;
+  updateSelectedTransDetailsFn: (detail: TransDetails | null) => void;
   updateSelectedTransErrorFn: (value: string | number | null) => void;
+  resetAllSelectionsFn: () => void;
   getPayersParams: (filters: Filters | null) => any;
   getTransSummaryParams: (selectedPayerId: any, filters: Filters | null) => any;
+  getTransDetailsParams: (
+    selectedPayerId: any,
+    selectedSummary: TransSummary | null,
+    filters: Filters | null,
+  ) => any;
 }
 
 const TransMonitorContext = createContext<TransMonitorContextValue | null>(
@@ -111,22 +119,61 @@ export function TransMonitorProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [selectionObj, setSelectionObj] = useState<SelectionState>({});
+  const [selectionObj, setSelectionObj] = useState<SelectionState>({
+    payerId: null,
+    transSummary: null,
+    transSummaryId: null,
+    transDetailsId: null,
+    transDetail: null,
+    transErrorId: null,
+  });
 
   const updateSelectedPayerFn = useCallback((value: string | number | null) => {
-    setSelectionObj((prev) => ({ ...prev, payerId: value }));
+    setSelectionObj((prev) => {
+      if (prev.payerId === value) return prev;
+      return {
+        payerId: value,
+        transSummary: null,
+        transSummaryId: null,
+        transDetailsId: null,
+        transDetail: null,
+        transErrorId: null,
+      };
+    });
   }, []);
 
   const updateSelectedTransSummaryFn = useCallback(
-    (value: string | number | null) => {
-      setSelectionObj((prev) => ({ ...prev, transSummaryId: value }));
+    (summary: TransSummary | null) => {
+      const summaryId = summary
+        ? `${summary.api_function}-${summary.api_name}-${summary.status}`
+        : null;
+      setSelectionObj((prev) => {
+        if (prev.transSummaryId === summaryId) return prev;
+        return {
+          ...prev,
+          transSummary: summary,
+          transSummaryId: summaryId,
+          transDetailsId: null,
+          transDetail: null,
+          transErrorId: null,
+        };
+      });
     },
     [],
   );
 
   const updateSelectedTransDetailsFn = useCallback(
-    (value: string | number | null) => {
-      setSelectionObj((prev) => ({ ...prev, transDetailsId: value }));
+    (detail: TransDetails | null) => {
+      const detailId = detail?.api_trans_id ?? null;
+      setSelectionObj((prev) => {
+        if (prev.transDetailsId === detailId) return prev;
+        return {
+          ...prev,
+          transDetail: detail,
+          transDetailsId: detailId,
+          transErrorId: null,
+        };
+      });
     },
     [],
   );
@@ -138,6 +185,17 @@ export function TransMonitorProvider({
     [],
   );
 
+  const resetAllSelectionsFn = useCallback(() => {
+    setSelectionObj({
+      payerId: null,
+      transSummary: null,
+      transSummaryId: null,
+      transDetailsId: null,
+      transDetail: null,
+      transErrorId: null,
+    });
+  }, []);
+
   const getPayersParams = useCallback((filters: Filters | null) => {
     const params = { ...(filters ?? ({} as Filters)) };
     delete params.payers;
@@ -147,12 +205,13 @@ export function TransMonitorProvider({
 
   const getTransSummaryParams = useCallback(
     (selectedPayerId: any, filters: Filters | null) => {
-      const filterParams = { ...(filters ?? {}) };
+      const filterParams = { ...(filters ?? ({} as Filters)) };
 
       delete filterParams.status;
       delete filterParams.payers;
 
-      const finalPayerId = filters?.payers ? selectedPayerId : filters?.payer_id;
+      const groupByPayers = filters?.payers !== false;
+      const finalPayerId = groupByPayers ? selectedPayerId : filters?.payer_id;
 
       const params: any = {
         ...filterParams,
@@ -169,6 +228,43 @@ export function TransMonitorProvider({
     [],
   );
 
+  const getTransDetailsParams = useCallback(
+    (
+      selectedPayerId: any,
+      selectedSummary: TransSummary | null,
+      filters: Filters | null,
+    ) => {
+      const activeFilters = { ...(filters ?? ({} as Filters)) };
+      const groupByPayers = activeFilters.payers !== false;
+      const groupByStatus = activeFilters.status !== false;
+
+      const finalPayerId = groupByPayers
+        ? selectedPayerId
+        : activeFilters.payer_id;
+
+      const params: any = {
+        ...activeFilters,
+      };
+
+      if (finalPayerId && finalPayerId !== -1) {
+        params.payer_id = finalPayerId;
+      } else {
+        delete params.payer_id;
+      }
+
+      if (groupByStatus && selectedSummary) {
+        if (selectedSummary.api_name) params.api_name = selectedSummary.api_name;
+        if (selectedSummary.api_function)
+          params.api_function = selectedSummary.api_function;
+        if (selectedSummary.status) params.status = selectedSummary.status;
+      }
+
+      delete params.payers;
+      return params;
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       transMonitorContextData: { selectionObj },
@@ -176,8 +272,10 @@ export function TransMonitorProvider({
       updateSelectedTransSummaryFn,
       updateSelectedTransDetailsFn,
       updateSelectedTransErrorFn,
+      resetAllSelectionsFn,
       getPayersParams,
       getTransSummaryParams,
+      getTransDetailsParams,
     }),
     [
       selectionObj,
@@ -185,6 +283,10 @@ export function TransMonitorProvider({
       updateSelectedTransSummaryFn,
       updateSelectedTransDetailsFn,
       updateSelectedTransErrorFn,
+      resetAllSelectionsFn,
+      getPayersParams,
+      getTransSummaryParams,
+      getTransDetailsParams,
     ],
   );
 

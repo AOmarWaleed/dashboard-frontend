@@ -49,13 +49,15 @@ export interface Filters {
 
 interface FilterProps {
   setFilterValues: (values: Filters) => void;
+  onSearch?: (values: Filters) => void;
   refetchRefPayer: React.MutableRefObject<(() => void) | null>;
-  refetchRefSummary: React.MutableRefObject<(() => void) | null>;
+  refetchRefSummary?: React.MutableRefObject<(() => void) | null>;
   sx?: {};
 }
 
 const FilterForm = ({
   setFilterValues,
+  onSearch,
   sx,
   refetchRefPayer,
   refetchRefSummary,
@@ -126,18 +128,15 @@ const FilterForm = ({
       if (values.patient) {
         data.patient_id = (values.patient as any)?.patient_id;
       }
-      setFilterValues(data);
+
       handleSubmit(effectiveValues);
 
-      Promise.resolve(refetchRefPayer?.current?.())
-        .then(
-          () => {
-            refetchRefSummary?.current?.();
-          },
-          () => {
-            refetchRefSummary?.current?.();
-          },
-        );
+      if (onSearch) {
+        onSearch(data);
+      } else {
+        setFilterValues(data);
+        refetchRefPayer?.current?.();
+      }
     },
   });
 
@@ -290,7 +289,7 @@ const FilterForm = ({
       },
     });
     setQuickTimeRange("");
-    setFilterValues({
+    const clearedFilters: Filters = {
       date_start: "",
       date_end: "",
       payer_id: "",
@@ -299,7 +298,12 @@ const FilterForm = ({
       api_function: "",
       transaction_status: "",
       all_facilities: false,
-    });
+    };
+    if (onSearch) {
+      onSearch(clearedFilters);
+    } else {
+      setFilterValues(clearedFilters);
+    }
   };
 
   return (

@@ -54,12 +54,18 @@ export default function TransMonitor() {
     updateSelectedTransSummaryFn,
     updateSelectedTransDetailsFn,
     updateSelectedTransErrorFn,
+    resetAllSelectionsFn,
     getPayersParams,
     getTransSummaryParams,
+    getTransDetailsParams,
   } = useTransMonitorContext();
 
-  const getSummaryRowId = (row: TransSummary) =>
-    `${row.api_function}-${row.api_name}-${row.status}`;
+  const {
+    payerId: selectedPayerId,
+    transSummary: selectedTransSummary,
+    transDetailsId: selectedTransDetailsId,
+    transDetail: selectedTransDetail,
+  } = transMonitorContextData.selectionObj;
 
   const [resendDialogOpen, setResendDialogOpen] = useState(false);
   const [resendUrl, setResendUrl] = useState("");
@@ -81,19 +87,9 @@ export default function TransMonitor() {
   } | null>(null);
 
   const [filterValues, setFilterValues] = useState<Filters | null>(null);
-  const selectedPayerId = transMonitorContextData.selectionObj.payerId || null;
-  const setSelectedPayerId = updateSelectedPayerFn;
-
-  const [selectedTransSummary, setSelectedTransSummary] = useState<TransSummary | null>(null);
-  const setSelectedTransSummaryId = updateSelectedTransSummaryFn;
-
-  const selectedTransDetailsId = transMonitorContextData.selectionObj.transDetailsId || null;
-  const [selectedTransDetail, setSelectedTransDetail] = useState<any>();
-  const setSelectedTransDetailsId = updateSelectedTransDetailsFn;
 
   const [selectedTab, setSelectedTab] = useState("errors");
 
-  const setSelectedTransErrorId = updateSelectedTransErrorFn;
   const [, setSelectedTransResponseId] = useState<string | number | null>(null);
   const [selectedPollDetailsId, setSelectedPollDetailsId] = useState<string | number | null>(null);
 
@@ -179,27 +175,6 @@ export default function TransMonitor() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getTransDetailsParams = (
-    selectedPayerId: any,
-    selectedSummary: TransSummary | null,
-    filters: Filters | null,
-  ) => {
-    const activeFilters = filters ?? ({} as Filters);
-    const params = {
-      ...activeFilters,
-      payer_id: activeFilters.payers ? selectedPayerId : activeFilters.payer_id,
-      api_name: activeFilters.status
-        ? selectedSummary?.api_name
-        : activeFilters.api_name,
-      api_function: activeFilters.status
-        ? selectedSummary?.api_function
-        : activeFilters.api_function,
-      status: activeFilters.status ? selectedSummary?.status : "",
-    };
-    delete params.payers;
-    return params;
   };
 
   const handleResendHl7Msg = (useHttp: boolean) => {
@@ -297,10 +272,15 @@ export default function TransMonitor() {
   };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const refetchRefPayer = useRef<() => void | null>(null);
-  const refetchRefSummary = useRef<() => void | null>(null);
-  const refetchRefTransErrors = useRef<() => void | null>(null);
-  const refetchRefPollDetails = useRef<() => void | null>(null);
+  const refetchRefPayer = useRef<(() => void) | null>(null);
+  const refetchRefSummary = useRef<(() => void) | null>(null);
+  const refetchRefTransErrors = useRef<(() => void) | null>(null);
+  const refetchRefPollDetails = useRef<(() => void) | null>(null);
+
+  const resetSelectedRowRefPayer = useRef<(() => void) | null>(null);
+  const resetSelectedRowRefSummary = useRef<(() => void) | null>(null);
+  const resetSelectedRowRefDetails = useRef<(() => void) | null>(null);
+
   const [loading, setLoading] = useState(false);
 
   const handleButtonClick = () => {
@@ -333,17 +313,79 @@ export default function TransMonitor() {
     }
   };
 
+  const handleSearch = useCallback(
+    (newFilters: Filters) => {
+      // 1. Reset all selections in context
+      resetAllSelectionsFn();
+
+      // 2. Reset table internal selection highlights
+      resetSelectedRowRefPayer.current?.();
+      resetSelectedRowRefSummary.current?.();
+      resetSelectedRowRefDetails.current?.();
+
+      // 3. Reset pagination
+      setPayerPage(1);
+      setSummaryPage(1);
+      setDetailsPage(1);
+      setErrorsPage(1);
+      setResponsePage(1);
+      setPollDetailsPage(1);
+
+      // 4. Update filter values
+      setFilterValues(newFilters);
+
+      // 5. Force refetch Payers table
+      refetchRefPayer.current?.();
+    },
+    [resetAllSelectionsFn],
+  );
+
+  const isSummaryReady = Boolean(
+    filterValues?.payers === false ? filterValues : selectedPayerId != null,
+  );
+  const summaryUrl = isSummaryReady ? "/transMonitor/trans_summaries" : "";
+
+  const isDetailsReady = Boolean(
+    filterValues?.status === false
+      ? filterValues?.payers === false
+        ? filterValues
+        : selectedPayerId != null
+      : selectedTransSummary != null,
+  );
+  const detailsUrl = isDetailsReady ? "/transMonitor/trans_details" : "";
+
+  const isDetailSelected = Boolean(selectedTransDetailsId != null);
+  const errorsUrl = isDetailSelected ? "/transMonitor/trans_errors" : "";
+  const responseUrl = isDetailSelected ? "/transMonitor/trans_responses" : "";
+  const pollDetailsUrl = isDetailSelected ? "/transMonitor/poll_details" : "";
+
   const payersParams = useMemo(() => {
     return getPayersParams(filterValues);
-  }, [filterValues]);
+  }, [getPayersParams, filterValues]);
 
   const summaryParams = useMemo(() => {
+    if (!isSummaryReady) return {};
     return getTransSummaryParams(selectedPayerId, filterValues);
-  }, [selectedPayerId, filterValues]);
+  }, [isSummaryReady, getTransSummaryParams, selectedPayerId, filterValues]);
 
   const detailsParams = useMemo(() => {
-    return getTransDetailsParams(selectedPayerId, selectedTransSummary, filterValues);
-  }, [selectedPayerId, selectedTransSummary, filterValues]);
+    if (!isDetailsReady) return {};
+    return getTransDetailsParams(
+      selectedPayerId,
+      selectedTransSummary,
+      filterValues,
+    );
+  }, [
+    isDetailsReady,
+    getTransDetailsParams,
+    selectedPayerId,
+    selectedTransSummary,
+    filterValues,
+  ]);
+
+  const tabParams = useMemo(() => {
+    return isDetailSelected ? { trans_id: selectedTransDetailsId } : {};
+  }, [isDetailSelected, selectedTransDetailsId]);
 
   return (
     <>
@@ -384,6 +426,7 @@ export default function TransMonitor() {
         
         <FilterForm
           setFilterValues={setFilterValues}
+          onSearch={handleSearch}
           refetchRefPayer={refetchRefPayer}
           refetchRefSummary={refetchRefSummary}
         />
@@ -409,8 +452,9 @@ export default function TransMonitor() {
               limit={limit}
               smallSize
               refetchRef={refetchRefPayer}
+              resetSelectedRowRef={resetSelectedRowRefPayer}
               onRowSelected={(row: Payers | null) =>
-                setSelectedPayerId(row?.payer_id ? row?.payer_id : null)
+                updateSelectedPayerFn(row?.payer_id != null ? row.payer_id : null)
               }
               sx={{ maxHeight: "35vh" }}
               columns={
@@ -462,8 +506,9 @@ export default function TransMonitor() {
               fetcher={fetcher}
               page={summaryPage}
               refetchRef={refetchRefSummary}
+              resetSelectedRowRef={resetSelectedRowRefSummary}
               onPageChangeExternal={setSummaryPage}
-              url="/transMonitor/trans_summaries"
+              url={summaryUrl}
               params={summaryParams}
               getRowId={(row: TransSummary) =>
                 `${row?.api_function}-${row?.api_name}-${row?.status}`
@@ -545,8 +590,7 @@ export default function TransMonitor() {
                 ] as GLGridColDef[]
               }
               onRowSelected={(row: TransSummary | null) => {
-                setSelectedTransSummary(row);
-                setSelectedTransSummaryId(row ? getSummaryRowId(row) : null);
+                updateSelectedTransSummaryFn(row);
               }}
             />
           </Box>
@@ -564,7 +608,8 @@ export default function TransMonitor() {
             fetcher={fetcher}
             page={detailsPage}
             onPageChangeExternal={setDetailsPage}
-            url="/transMonitor/trans_details"
+            resetSelectedRowRef={resetSelectedRowRefDetails}
+            url={detailsUrl}
             params={detailsParams}
             smallSize
             getRowId={(row: any) => row.api_trans_id}
@@ -842,8 +887,7 @@ export default function TransMonitor() {
             }
             sx={{ maxHeight: "35vh" }}
             onRowSelected={(row: TransDetails | null) => {
-              setSelectedTransDetailsId(row?.api_trans_id ?? null);
-              setSelectedTransDetail(row);
+              updateSelectedTransDetailsFn(row);
             }}
           />
 
@@ -864,6 +908,7 @@ export default function TransMonitor() {
           >
             <Button
               variant="contained"
+              disabled={!selectedTransDetailsId}
               onClick={() => {
                 if (!selectedTransDetailsId) return;
 
@@ -899,6 +944,7 @@ export default function TransMonitor() {
 
             <Button
               variant="contained"
+              disabled={!selectedTransDetailsId}
               onClick={() => {
                 if (!selectedTransDetailsId) return;
                 setIsLoading(true);
@@ -929,6 +975,7 @@ export default function TransMonitor() {
 
             <Button
               variant="contained"
+              disabled={!selectedTransDetailsId}
               onClick={() => {
                 if (!selectedTransDetailsId) return;
                 setIsLoading(true);
@@ -1055,8 +1102,8 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transErrorsTable`}
                 fetcher={fetcher}
-                url={`/transMonitor/trans_errors`}
-                params={{ trans_id: selectedTransDetailsId }}
+                url={errorsUrl}
+                params={tabParams}
                 page={errorsPage}
                 onPageChangeExternal={setErrorsPage}
                 refetchRef={refetchRefTransErrors}
@@ -1136,7 +1183,7 @@ export default function TransMonitor() {
                 }
                 getRowId={(row: TransError) => row.message_id}
                 onRowSelected={(row) =>
-                  setSelectedTransErrorId(row?.message_id ?? null)
+                  updateSelectedTransErrorFn(row?.message_id ?? null)
                 }
                 sx={{ maxHeight: "35vh", flex: 1 }}
               />
@@ -1150,10 +1197,10 @@ export default function TransMonitor() {
               <Secure.GLCustomTable2
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}transResponses`}
                 fetcher={fetcher}
-                url={`/transMonitor/trans_responses`}
+                url={responseUrl}
                 page={responsePage}
                 onPageChangeExternal={setResponsePage}
-                params={{ trans_id: selectedTransDetailsId }}
+                params={tabParams}
                 smallSize
                 getRowId={(row: TransResponse) => row.response_seq}
                 onRowSelected={(row) =>
@@ -1278,8 +1325,8 @@ export default function TransMonitor() {
                 permission={`${PERMISSIONS_PREFIXES.transMonitor}pollDetails`}
                 refetchRef={refetchRefPollDetails}
                 fetcher={fetcher}
-                url={`/transMonitor/poll_details`}
-                params={{ trans_id: selectedTransDetailsId }}
+                url={pollDetailsUrl}
+                params={tabParams}
                 page={pollDetailsPage}
                 onPageChangeExternal={setPollDetailsPage}
                 smallSize
