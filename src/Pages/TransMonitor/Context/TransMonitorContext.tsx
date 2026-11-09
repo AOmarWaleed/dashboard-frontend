@@ -197,9 +197,16 @@ export function TransMonitorProvider({
   }, []);
 
   const getPayersParams = useCallback((filters: Filters | null) => {
-    const params = { ...(filters ?? ({} as Filters)) };
+    const params: any = { ...(filters ?? ({} as Filters)) };
     delete params.payers;
     delete params.status;
+
+    Object.keys(params).forEach((key) => {
+      if (params[key] === "" || params[key] === undefined || params[key] === null) {
+        delete params[key];
+      }
+    });
+
     return params;
   }, []);
 
@@ -217,11 +224,17 @@ export function TransMonitorProvider({
         ...filterParams,
       };
 
-      if (finalPayerId && finalPayerId !== -1) {
+      if (finalPayerId != null && finalPayerId !== "") {
         params.payer_id = finalPayerId;
       } else {
         delete params.payer_id;
       }
+
+      Object.keys(params).forEach((key) => {
+        if (params[key] === "" || params[key] === undefined || params[key] === null) {
+          delete params[key];
+        }
+      });
 
       return params;
     },
@@ -236,7 +249,10 @@ export function TransMonitorProvider({
     ) => {
       const activeFilters = { ...(filters ?? ({} as Filters)) };
       const groupByPayers = activeFilters.payers !== false;
-      const groupByStatus = activeFilters.status !== false;
+
+      // Crucial: remove frontend checkbox flags
+      delete activeFilters.payers;
+      delete activeFilters.status;
 
       const finalPayerId = groupByPayers
         ? selectedPayerId
@@ -246,20 +262,40 @@ export function TransMonitorProvider({
         ...activeFilters,
       };
 
-      if (finalPayerId && finalPayerId !== -1) {
+      if (finalPayerId != null && finalPayerId !== "") {
         params.payer_id = finalPayerId;
       } else {
         delete params.payer_id;
       }
 
-      if (groupByStatus && selectedSummary) {
-        if (selectedSummary.api_name) params.api_name = selectedSummary.api_name;
-        if (selectedSummary.api_function)
+      if (selectedSummary) {
+        if (selectedSummary.api_name) {
+          params.api_name = selectedSummary.api_name;
+        }
+        if (
+          selectedSummary.api_function &&
+          selectedSummary.api_function !== "--" &&
+          selectedSummary.api_function !== "null"
+        ) {
           params.api_function = selectedSummary.api_function;
-        if (selectedSummary.status) params.status = selectedSummary.status;
+        } else {
+          delete params.api_function;
+        }
+        if (selectedSummary.status) {
+          params.status = selectedSummary.status;
+        } else {
+          delete params.status;
+        }
+      } else {
+        delete params.status;
       }
 
-      delete params.payers;
+      Object.keys(params).forEach((key) => {
+        if (params[key] === "" || params[key] === undefined || params[key] === null) {
+          delete params[key];
+        }
+      });
+
       return params;
     },
     [],

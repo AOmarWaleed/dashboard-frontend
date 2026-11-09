@@ -277,10 +277,7 @@ export default function TransMonitor() {
   const refetchRefTransErrors = useRef<(() => void) | null>(null);
   const refetchRefPollDetails = useRef<(() => void) | null>(null);
 
-  const resetSelectedRowRefPayer = useRef<(() => void) | null>(null);
-  const resetSelectedRowRefSummary = useRef<(() => void) | null>(null);
-  const resetSelectedRowRefDetails = useRef<(() => void) | null>(null);
-
+  const [searchSeq, setSearchSeq] = useState(1);
   const [loading, setLoading] = useState(false);
 
   const handleButtonClick = () => {
@@ -318,12 +315,7 @@ export default function TransMonitor() {
       // 1. Reset all selections in context
       resetAllSelectionsFn();
 
-      // 2. Reset table internal selection highlights
-      resetSelectedRowRefPayer.current?.();
-      resetSelectedRowRefSummary.current?.();
-      resetSelectedRowRefDetails.current?.();
-
-      // 3. Reset pagination
+      // 2. Reset pagination
       setPayerPage(1);
       setSummaryPage(1);
       setDetailsPage(1);
@@ -331,10 +323,11 @@ export default function TransMonitor() {
       setResponsePage(1);
       setPollDetailsPage(1);
 
-      // 4. Update filter values
+      // 3. Update filter values and increment searchSeq to bust SWR cache
       setFilterValues(newFilters);
+      setSearchSeq((prev) => prev + 1);
 
-      // 5. Force refetch Payers table
+      // 4. Force refetch Payers table
       refetchRefPayer.current?.();
     },
     [resetAllSelectionsFn],
@@ -345,13 +338,7 @@ export default function TransMonitor() {
   );
   const summaryUrl = isSummaryReady ? "/transMonitor/trans_summaries" : "";
 
-  const isDetailsReady = Boolean(
-    filterValues?.status === false
-      ? filterValues?.payers === false
-        ? filterValues
-        : selectedPayerId != null
-      : selectedTransSummary != null,
-  );
+  const isDetailsReady = Boolean(selectedTransSummary != null);
   const detailsUrl = isDetailsReady ? "/transMonitor/trans_details" : "";
 
   const isDetailSelected = Boolean(selectedTransDetailsId != null);
@@ -360,32 +347,50 @@ export default function TransMonitor() {
   const pollDetailsUrl = isDetailSelected ? "/transMonitor/poll_details" : "";
 
   const payersParams = useMemo(() => {
-    return getPayersParams(filterValues);
-  }, [getPayersParams, filterValues]);
+    return {
+      ...getPayersParams(filterValues),
+      _s: searchSeq,
+    };
+  }, [getPayersParams, filterValues, searchSeq]);
 
   const summaryParams = useMemo(() => {
     if (!isSummaryReady) return {};
-    return getTransSummaryParams(selectedPayerId, filterValues);
-  }, [isSummaryReady, getTransSummaryParams, selectedPayerId, filterValues]);
+    return {
+      ...getTransSummaryParams(selectedPayerId, filterValues),
+      _s: searchSeq,
+    };
+  }, [
+    isSummaryReady,
+    getTransSummaryParams,
+    selectedPayerId,
+    filterValues,
+    searchSeq,
+  ]);
 
   const detailsParams = useMemo(() => {
     if (!isDetailsReady) return {};
-    return getTransDetailsParams(
-      selectedPayerId,
-      selectedTransSummary,
-      filterValues,
-    );
+    return {
+      ...getTransDetailsParams(
+        selectedPayerId,
+        selectedTransSummary,
+        filterValues,
+      ),
+      _s: searchSeq,
+    };
   }, [
     isDetailsReady,
     getTransDetailsParams,
     selectedPayerId,
     selectedTransSummary,
     filterValues,
+    searchSeq,
   ]);
 
   const tabParams = useMemo(() => {
-    return isDetailSelected ? { trans_id: selectedTransDetailsId } : {};
-  }, [isDetailSelected, selectedTransDetailsId]);
+    return isDetailSelected
+      ? { trans_id: selectedTransDetailsId, _s: searchSeq }
+      : {};
+  }, [isDetailSelected, selectedTransDetailsId, searchSeq]);
 
   return (
     <>
@@ -452,7 +457,13 @@ export default function TransMonitor() {
               limit={limit}
               smallSize
               refetchRef={refetchRefPayer}
-              resetSelectedRowRef={resetSelectedRowRefPayer}
+              handleDataChange={(rows: Payers[]) => {
+                if (rows && rows.length > 0) {
+                  updateSelectedPayerFn(rows[0].payer_id);
+                } else {
+                  updateSelectedPayerFn(null);
+                }
+              }}
               onRowSelected={(row: Payers | null) =>
                 updateSelectedPayerFn(row?.payer_id != null ? row.payer_id : null)
               }
@@ -506,7 +517,6 @@ export default function TransMonitor() {
               fetcher={fetcher}
               page={summaryPage}
               refetchRef={refetchRefSummary}
-              resetSelectedRowRef={resetSelectedRowRefSummary}
               onPageChangeExternal={setSummaryPage}
               url={summaryUrl}
               params={summaryParams}
@@ -516,6 +526,13 @@ export default function TransMonitor() {
               sx={{ maxHeight: "35vh" }}
               smallSize
               limit={limit}
+              handleDataChange={(rows: TransSummary[]) => {
+                if (rows && rows.length > 0) {
+                  updateSelectedTransSummaryFn(rows[0]);
+                } else {
+                  updateSelectedTransSummaryFn(null);
+                }
+              }}
               columns={
                 [
                   {
@@ -608,12 +625,18 @@ export default function TransMonitor() {
             fetcher={fetcher}
             page={detailsPage}
             onPageChangeExternal={setDetailsPage}
-            resetSelectedRowRef={resetSelectedRowRefDetails}
             url={detailsUrl}
             params={detailsParams}
             smallSize
             getRowId={(row: any) => row.api_trans_id}
             limit={limit}
+            handleDataChange={(rows: TransDetails[]) => {
+              if (rows && rows.length > 0) {
+                updateSelectedTransDetailsFn(rows[0]);
+              } else {
+                updateSelectedTransDetailsFn(null);
+              }
+            }}
             initialHiddenColumns={[
               "bundle_id",
               "response_time_ms",
