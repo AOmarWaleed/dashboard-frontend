@@ -86,8 +86,14 @@ interface TransMonitorContextValue {
   transMonitorContextData: {
     selectionObj: SelectionState;
   };
-  updateSelectedPayerFn: (value: string | number | null) => void;
-  updateSelectedTransSummaryFn: (summary: TransSummary | null) => void;
+  updateSelectedPayerFn: (
+    value: string | number | null,
+    preserveDownstream?: boolean,
+  ) => void;
+  updateSelectedTransSummaryFn: (
+    summary: TransSummary | null,
+    preserveDetails?: boolean,
+  ) => void;
   updateSelectedTransDetailsFn: (detail: TransDetails | null) => void;
   updateSelectedTransErrorFn: (value: string | number | null) => void;
   resetAllSelectionsFn: () => void;
@@ -128,22 +134,35 @@ export function TransMonitorProvider({
     transErrorId: null,
   });
 
-  const updateSelectedPayerFn = useCallback((value: string | number | null) => {
-    setSelectionObj((prev) => {
-      if (prev.payerId === value) return prev;
-      return {
-        payerId: value,
-        transSummary: null,
-        transSummaryId: null,
-        transDetailsId: null,
-        transDetail: null,
-        transErrorId: null,
-      };
-    });
-  }, []);
+  const updateSelectedPayerFn = useCallback(
+    (value: string | number | null, preserveDownstream = false) => {
+      setSelectionObj((prev) => {
+        if (prev.payerId === value) return prev;
+        return {
+          payerId: value,
+          ...(preserveDownstream
+            ? {
+                transSummary: prev.transSummary,
+                transSummaryId: prev.transSummaryId,
+                transDetailsId: prev.transDetailsId,
+                transDetail: prev.transDetail,
+                transErrorId: prev.transErrorId,
+              }
+            : {
+                transSummary: null,
+                transSummaryId: null,
+                transDetailsId: null,
+                transDetail: null,
+                transErrorId: null,
+              }),
+        };
+      });
+    },
+    [],
+  );
 
   const updateSelectedTransSummaryFn = useCallback(
-    (summary: TransSummary | null) => {
+    (summary: TransSummary | null, preserveDetails = false) => {
       const summaryId = summary
         ? `${summary.api_function}-${summary.api_name}-${summary.status}`
         : null;
@@ -153,9 +172,13 @@ export function TransMonitorProvider({
           ...prev,
           transSummary: summary,
           transSummaryId: summaryId,
-          transDetailsId: null,
-          transDetail: null,
-          transErrorId: null,
+          ...(preserveDetails
+            ? {}
+            : {
+                transDetailsId: null,
+                transDetail: null,
+                transErrorId: null,
+              }),
         };
       });
     },

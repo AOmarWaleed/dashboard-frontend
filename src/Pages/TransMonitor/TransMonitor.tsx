@@ -122,12 +122,26 @@ export default function TransMonitor() {
   }, [filterValues]);
 
   useEffect(() => {
-    setSummaryPage(1);
+    if (filterValues?.payers !== false) {
+      setSummaryPage(1);
+    }
   }, [selectedPayerId, filterValues]);
 
   useEffect(() => {
+    if (filterValues?.status !== false) {
+      setDetailsPage(1);
+    }
+  }, [selectedTransSummary]);
+
+  useEffect(() => {
+    if (filterValues?.payers !== false) {
+      setDetailsPage(1);
+    }
+  }, [selectedPayerId]);
+
+  useEffect(() => {
     setDetailsPage(1);
-  }, [selectedPayerId, selectedTransSummary, filterValues]);
+  }, [filterValues]);
 
   useEffect(() => {
     setErrorsPage(1);
@@ -338,7 +352,11 @@ export default function TransMonitor() {
   );
   const summaryUrl = isSummaryReady ? "/transMonitor/trans_summaries" : "";
 
-  const isDetailsReady = Boolean(selectedTransSummary != null);
+  const isDetailsReady = Boolean(
+    filterValues?.status === false
+      ? isSummaryReady
+      : selectedTransSummary != null,
+  );
   const detailsUrl = isDetailsReady ? "/transMonitor/trans_details" : "";
 
   const isDetailSelected = Boolean(selectedTransDetailsId != null);
@@ -353,26 +371,35 @@ export default function TransMonitor() {
     };
   }, [getPayersParams, filterValues, searchSeq]);
 
+  const effectivePayerForSummary =
+    filterValues?.payers === false ? null : selectedPayerId;
+
   const summaryParams = useMemo(() => {
     if (!isSummaryReady) return {};
     return {
-      ...getTransSummaryParams(selectedPayerId, filterValues),
+      ...getTransSummaryParams(effectivePayerForSummary, filterValues),
       _s: searchSeq,
     };
   }, [
     isSummaryReady,
     getTransSummaryParams,
-    selectedPayerId,
+    effectivePayerForSummary,
     filterValues,
     searchSeq,
   ]);
+
+  const effectivePayerForDetails =
+    filterValues?.payers === false ? null : selectedPayerId;
+
+  const effectiveSummaryForDetails =
+    filterValues?.status === false ? null : selectedTransSummary;
 
   const detailsParams = useMemo(() => {
     if (!isDetailsReady) return {};
     return {
       ...getTransDetailsParams(
-        selectedPayerId,
-        selectedTransSummary,
+        effectivePayerForDetails,
+        effectiveSummaryForDetails,
         filterValues,
       ),
       _s: searchSeq,
@@ -380,8 +407,8 @@ export default function TransMonitor() {
   }, [
     isDetailsReady,
     getTransDetailsParams,
-    selectedPayerId,
-    selectedTransSummary,
+    effectivePayerForDetails,
+    effectiveSummaryForDetails,
     filterValues,
     searchSeq,
   ]);
@@ -458,8 +485,23 @@ export default function TransMonitor() {
               smallSize
               refetchRef={refetchRefPayer}
               onRowSelected={(row: Payers | null) =>
-                updateSelectedPayerFn(row?.payer_id != null ? row.payer_id : null)
+                updateSelectedPayerFn(
+                  row?.payer_id != null ? row.payer_id : null,
+                  filterValues?.payers === false,
+                )
               }
+              handleDataChange={(rows: Payers[]) => {
+                if (filterValues?.payers !== false) {
+                  if (rows && rows.length > 0) {
+                    const found = rows.find((r) => r.payer_id === selectedPayerId);
+                    if (!found) {
+                      updateSelectedPayerFn(rows[0].payer_id, false);
+                    }
+                  } else {
+                    updateSelectedPayerFn(null, false);
+                  }
+                }
+              }}
               sx={{ maxHeight: "35vh" }}
               columns={
                 [
@@ -593,7 +635,33 @@ export default function TransMonitor() {
                 ] as GLGridColDef[]
               }
               onRowSelected={(row: TransSummary | null) => {
-                updateSelectedTransSummaryFn(row);
+                updateSelectedTransSummaryFn(
+                  row,
+                  filterValues?.status === false,
+                );
+              }}
+              handleDataChange={(rows: TransSummary[]) => {
+                if (rows && rows.length > 0) {
+                  const summaryId = selectedTransSummary
+                    ? `${selectedTransSummary.api_function}-${selectedTransSummary.api_name}-${selectedTransSummary.status}`
+                    : null;
+                  const found = rows.find(
+                    (r) =>
+                      `${r.api_function}-${r.api_name}-${r.status}` ===
+                      summaryId,
+                  );
+                  if (!found) {
+                    updateSelectedTransSummaryFn(
+                      rows[0],
+                      filterValues?.status === false,
+                    );
+                  }
+                } else {
+                  updateSelectedTransSummaryFn(
+                    null,
+                    filterValues?.status === false,
+                  );
+                }
               }}
             />
           </Box>
@@ -890,6 +958,22 @@ export default function TransMonitor() {
             sx={{ maxHeight: "35vh" }}
             onRowSelected={(row: TransDetails | null) => {
               updateSelectedTransDetailsFn(row);
+            }}
+            handleDataChange={(rows: TransDetails[]) => {
+              if (rows && rows.length > 0) {
+                const found = rows.find(
+                  (r) => r.api_trans_id === selectedTransDetailsId,
+                );
+                if (found) {
+                  if (selectedTransDetail !== found) {
+                    updateSelectedTransDetailsFn(found);
+                  }
+                } else {
+                  updateSelectedTransDetailsFn(rows[0]);
+                }
+              } else {
+                updateSelectedTransDetailsFn(null);
+              }
             }}
           />
 
