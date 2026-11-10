@@ -29,7 +29,7 @@
     "unpublish:package": "npm unpublish @givc/dashboard-frontend@1.0.1 --registry http://172.22.24.27:4873"
   },
   "dependencies": {
-    "@givc/shared-components": "^1.0.1",
+    "@givc/shared-components": "1.0.1",
     "chart.js": "^4.4.9",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-plugin-zoom": "^2.2.0",
